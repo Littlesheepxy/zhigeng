@@ -89,7 +89,38 @@ final class RemoteStore {
 	var approval: RemoteApproval?
 
 	var asrAuthToken: String? { session?.token }
-	var accountApiBase: URL? { session?.apiBase }
+	var accountApiBase: URL? {
+		guard let base = session?.apiBase else { return nil }
+		return Self.rewrittenForDevice(base)
+	}
+
+	/// Default account-api for standalone login (LAN). Override via UserDefaults `accountApiBase`.
+	static var defaultAccountApiBase: URL {
+		if let saved = UserDefaults.standard.string(forKey: "accountApiBase"),
+		   let url = URL(string: saved), url.host != nil
+		{
+			return rewrittenForDevice(url)
+		}
+		#if targetEnvironment(simulator)
+		return URL(string: "http://127.0.0.1:3010")!
+		#else
+		return URL(string: "http://172.16.1.15:3010")!
+		#endif
+	}
+
+	/// True-device cannot reach Mac's loopback; rewrite to LAN default host.
+	static func rewrittenForDevice(_ url: URL) -> URL {
+		#if targetEnvironment(simulator)
+		return url
+		#else
+		guard let host = url.host, host == "127.0.0.1" || host == "localhost" else { return url }
+		var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+		let lanHost = (UserDefaults.standard.string(forKey: "accountApiBase").flatMap(URL.init).flatMap(\.host))
+			?? "172.16.1.15"
+		comps?.host = (lanHost == "127.0.0.1" || lanHost == "localhost") ? "172.16.1.15" : lanHost
+		return comps?.url ?? url
+		#endif
+	}
 
 	private var session: RemoteSession?
 	private var webSocket: URLSessionWebSocketTask?
@@ -176,6 +207,7 @@ final class RemoteStore {
 			)
 			session = nextSession
 			Self.saveSession(nextSession)
+			UserDefaults.standard.set(pairing.apiBase.absoluteString, forKey: "accountApiBase")
 			signedIn = true
 			self.pairing = nil
 			self.code = ""
@@ -184,6 +216,57 @@ final class RemoteStore {
 			connect()
 		}
 		return success
+	}
+
+	/// Email login for ASR / account without Mac pairing.
+	func signInStandalone(apiBase: URL, email: String, code: String) async -> Bool {
+		var success = false
+		await perform {
+			let authBody = try JSONEncoder().encode([
+				"email": email.trimmingCharacters(in: .whitespacesAndNewlines),
+				"code": code.trimmingCharacters(in: .whitespacesAndNewlines),
+			])
+			let auth: AuthVerifyResponse = try await request(
+				apiBase: apiBase,
+				path: "/auth/verify",
+				method: "POST",
+				body: authBody
+			)
+			let nextSession = RemoteSession(
+				apiBase: apiBase,
+				token: auth.apiKey,
+				email: auth.user.email
+			)
+			session = nextSession
+			Self.saveSession(nextSession)
+			UserDefaults.standard.set(apiBase.absoluteString, forKey: "accountApiBase")
+			self.email = auth.user.email
+			signedIn = true
+			success = true
+		}
+		return success
+	}
+
+	func requestStandaloneCode(apiBase: URL, email: String) async {
+		await perform {
+			let body = try JSONEncoder().encode([
+				"email": email.trimmingCharacters(in: .whitespacesAndNewlines),
+			])
+			let _: OkResponse = try await request(
+				apiBase: apiBase,
+				path: "/auth/request-code",
+				method: "POST",
+				body: body
+			)
+		}
+	}
+
+	func signOutAccount() {
+		session = nil
+		signedIn = false
+		email = ""
+		Self.clearSession()
+		disconnect()
 	}
 
 	func claimWithExistingSession() async -> Bool {
@@ -506,4 +589,8 @@ final class RemoteStore {
 
 private struct EmptyResponse: Decodable {
 	init() {}
+}
+
+private struct OkResponse: Decodable {
+	let ok: Bool?
 }

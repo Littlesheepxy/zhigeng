@@ -15,10 +15,12 @@ struct DictationAttributes: ActivityAttributes {
 	}
 
 	var startedAt: Date
+	var endsAt: Date?
 	var modeLabel: String
 
-	init(startedAt: Date = Date(), modeLabel: String = "待命") {
+	init(startedAt: Date = Date(), endsAt: Date, modeLabel: String = "待命") {
 		self.startedAt = startedAt
+		self.endsAt = endsAt
 		self.modeLabel = modeLabel
 	}
 }

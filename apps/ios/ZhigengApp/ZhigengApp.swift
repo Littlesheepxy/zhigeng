@@ -29,7 +29,15 @@ struct ZhigengApp: App {
 			}
 			store.showDictation = true
 		case "activate":
-			store.activateSessionFromKeyboard()
+			let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+			let requestId = queryItems?.first(where: { $0.name == "requestId" })?.value
+			let returnBundleId = queryItems?
+				.first(where: { $0.name == "returnBundleID" })?
+				.value
+			store.activateSessionFromKeyboard(
+				requestId: requestId,
+				returnBundleId: returnBundleId
+			)
 		case "history":
 			store.selectedTab = .activity
 		case "settings":

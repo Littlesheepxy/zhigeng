@@ -1,6 +1,8 @@
 import SwiftUI
 import UIKit
 import ZhigengCore
+import KeyboardHostBundleID
+import os.log
 
 final class KeyboardViewController: UIInputViewController {
 	private var hostingController: UIHostingController<KeyboardRootView>?
@@ -13,6 +15,9 @@ final class KeyboardViewController: UIInputViewController {
 	private var lastAppliedRevision = 0
 	private var pollTimer: Timer?
 	private var deleteRepeatTimer: Timer?
+	private var hostBundleId: String?
+	private var hostResolutionGeneration = 0
+	private var hostResolutionFailed = false
 
 	// Correction learning: only active for 30s after we inserted a dictation result.
 	private var correctionRequestId: String?
@@ -31,13 +36,24 @@ final class KeyboardViewController: UIInputViewController {
 		super.viewWillAppear(animated)
 		refreshLinkStatus()
 		refreshSessionAlive()
+		restorePendingRequestState()
 		rebuildHost()
 		startPolling()
 		consumeLegacyPendingResult()
 	}
 
+	override func viewDidAppear(_ animated: Bool) {
+		super.viewDidAppear(animated)
+		hostResolutionGeneration += 1
+		hostBundleId = nil
+		hostResolutionFailed = false
+		rebuildHost()
+		resolveHostBundleId(attempt: 0, generation: hostResolutionGeneration)
+	}
+
 	override func viewWillDisappear(_ animated: Bool) {
 		super.viewWillDisappear(animated)
+		hostResolutionGeneration += 1
 		pollTimer?.invalidate()
 		pollTimer = nil
 		deleteRepeatTimer?.invalidate()
@@ -45,11 +61,15 @@ final class KeyboardViewController: UIInputViewController {
 	}
 
 	private func rebuildHost() {
+		let activationURL = prepareActivationURL()
 		let root = KeyboardRootView(
 			needsInputModeSwitchKey: needsInputModeSwitchKey,
 			linkStatus: linkStatus,
 			dictationPhase: dictationPhase,
 			sessionAlive: sessionAlive,
+			activationReady: hostBundleId != nil,
+			hostResolutionFailed: hostResolutionFailed,
+			activationURL: activationURL,
 			onInsert: { [weak self] text in
 				self?.textDocumentProxy.insertText(text)
 			},
@@ -89,6 +109,87 @@ final class KeyboardViewController: UIInputViewController {
 		hostingController = host
 	}
 
+	private func resolveHostBundleId(attempt: Int, generation: Int) {
+		guard generation == hostResolutionGeneration else { return }
+		if let resolved = KeyboardHost.resolve(from: self) {
+			hostBundleId = resolved
+			UserDefaults(suiteName: AppGroupConstants.suiteName)?
+				.set(resolved, forKey: "keyboard.hostBundleId")
+			os_log(
+				"%{public}@",
+				log: OSLog(subsystem: "app.zhigeng.ios.keyboard", category: "host"),
+				type: .fault,
+				"[ZG] resolved keyboard host=\(resolved) attempt=\(attempt)"
+			)
+			rebuildHost()
+			return
+		}
+		guard attempt < 20 else {
+			hostResolutionFailed = true
+			os_log(
+				"%{public}@",
+				log: OSLog(subsystem: "app.zhigeng.ios.keyboard", category: "host"),
+				type: .fault,
+				"[ZG] keyboard host resolution timed out"
+			)
+			rebuildHost()
+			return
+		}
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+			self?.resolveHostBundleId(attempt: attempt + 1, generation: generation)
+		}
+	}
+
+	private func prepareActivationURL() -> URL {
+		guard linkStatus == .connected, !sessionAlive else {
+			return URL(string: "zhigeng://activate")!
+		}
+		if activeRequestId == nil {
+			let request = DictationRequest()
+			activeRequestId = request.requestId
+			insertion.reset()
+			lastAppliedRevision = 0
+			try? bridge.writeRequest(request)
+			UserDefaults(suiteName: AppGroupConstants.suiteName)?
+				.set(request.requestId, forKey: "keyboard.pendingRequestId")
+		}
+		var components = URLComponents(string: "zhigeng://activate")!
+		components.queryItems = [
+			URLQueryItem(name: "requestId", value: activeRequestId),
+			URLQueryItem(name: "returnBundleID", value: hostBundleId),
+		].compactMap { $0.value == nil ? nil : $0 }
+		return components.url!
+	}
+
+	private func restorePendingRequestState() {
+		guard activeRequestId == nil,
+		      sessionAlive,
+		      let defaults = UserDefaults(suiteName: AppGroupConstants.suiteName),
+		      let requestId = defaults.string(forKey: "keyboard.pendingRequestId"),
+		      !requestId.isEmpty,
+		      let session = try? bridge.readSession()
+		else { return }
+		activeRequestId = requestId
+		lastAppliedRevision = 0
+		os_log(
+			"%{public}@",
+			log: OSLog(subsystem: "app.zhigeng.ios.keyboard", category: "session"),
+			type: .fault,
+			"[ZG] restore request=\(requestId) state=\(session.state.rawValue)"
+		)
+		switch session.state {
+		case .recording:
+			dictationPhase = .listening
+		case .processing:
+			dictationPhase = .processing
+		case .idle:
+			dictationPhase = .listening
+			try? bridge.writeCommand(DictationCommand(kind: .start, requestId: requestId))
+		default:
+			break
+		}
+	}
+
 	private func refreshLinkStatus() {
 		let full = hasFullAccess
 		let hb = KeyboardHeartbeat(hasFullAccess: full)
@@ -124,9 +225,10 @@ final class KeyboardViewController: UIInputViewController {
 		switch dictationPhase {
 		case .listening:
 			stopDictation()
-		case .idle, .error, .done, .aborted:
+		case .idle, .error, .done, .aborted, .needsActivation:
+			// needsActivation stays tappable: if the app-open failed, retry instead of dead-ending.
 			startDictation()
-		case .processing, .needsActivation:
+		case .processing:
 			break
 		}
 	}
@@ -136,7 +238,6 @@ final class KeyboardViewController: UIInputViewController {
 		if !sessionAlive {
 			dictationPhase = .needsActivation
 			rebuildHost()
-			openURL(URL(string: "zhigeng://activate")!)
 			return
 		}
 
@@ -350,18 +451,6 @@ final class KeyboardViewController: UIInputViewController {
 		}
 	}
 
-	private func openURL(_ url: URL) {
-		var responder: UIResponder? = self
-		let selector = NSSelectorFromString("openURL:")
-		while let r = responder {
-			if r.responds(to: selector) {
-				r.perform(selector, with: url)
-				return
-			}
-			responder = r.next
-		}
-		extensionContext?.open(url, completionHandler: nil)
-	}
 }
 
 enum KeyboardDictationPhase: Equatable {
@@ -449,6 +538,9 @@ struct KeyboardRootView: View {
 	var linkStatus: KeyboardLinkStatus
 	var dictationPhase: KeyboardDictationPhase
 	var sessionAlive: Bool
+	var activationReady: Bool
+	var hostResolutionFailed: Bool
+	var activationURL: URL
 	var onInsert: (String) -> Void
 	var onDelete: () -> Void
 	var onDeleteHoldChanged: (Bool) -> Void
@@ -469,9 +561,15 @@ struct KeyboardRootView: View {
 					.foregroundStyle(.orange)
 					.frame(maxWidth: .infinity)
 			} else if !sessionAlive && mode == .voice {
-				Text("未开启即听即写 · 点声波会先激活知更")
+				Text(
+					hostResolutionFailed
+						? "暂时无法识别当前应用，请切换键盘重试"
+						: activationReady
+							? "未开启即听即写 · 点麦克风打开知更"
+							: "正在连接当前应用…"
+				)
 					.font(.caption2)
-					.foregroundStyle(.secondary)
+					.foregroundStyle(hostResolutionFailed ? .orange : .secondary)
 					.frame(maxWidth: .infinity)
 			}
 
@@ -534,7 +632,7 @@ struct KeyboardRootView: View {
 				} label: {
 					Group {
 						if item == .voice {
-							Image(systemName: "waveform")
+							Image(systemName: "mic.fill")
 								.font(.system(size: 13, weight: .semibold))
 						} else if item == .english {
 							Text("EN")
@@ -571,29 +669,55 @@ struct KeyboardRootView: View {
 				.font(.subheadline)
 				.foregroundStyle(.secondary)
 				.multilineTextAlignment(.center)
-			Button(action: onDictate) {
-				Image(systemName: dictationPhase == .listening ? "stop.fill" : "waveform")
-					.font(.system(size: 28, weight: .semibold))
-					.foregroundStyle(.white)
-					.frame(width: 136, height: 72)
-					.background(
-						dictationPhase == .listening
-							? Color(red: 0.75, green: 0.22, blue: 0.2)
-							: Color.black.opacity(0.88),
-						in: Capsule()
-					)
+			if linkStatus == .connected && !sessionAlive {
+				if activationReady {
+					Link(destination: activationURL) {
+						dictationButtonLabel
+					}
+					.buttonStyle(.plain)
+					.accessibilityLabel("打开知更并开启即听即写")
+				} else {
+					dictationButtonLabel
+						.opacity(0.45)
+				}
+			} else {
+				Button(action: onDictate) {
+					dictationButtonLabel
+				}
+				.buttonStyle(.plain)
+				.disabled(linkStatus != .connected || dictationPhase == .processing)
+				.opacity(linkStatus == .connected ? 1 : 0.45)
+				.accessibilityLabel(dictationPhase == .listening ? "结束说话" : "点击说话")
 			}
-			.buttonStyle(.plain)
-			.disabled(linkStatus != .connected || dictationPhase == .processing)
-			.opacity(linkStatus == .connected ? 1 : 0.45)
-			.accessibilityLabel(dictationPhase == .listening ? "结束说话" : "点击说话")
 			Spacer(minLength: 4)
 			editToolbar
 		}
 	}
 
+	private var dictationButtonLabel: some View {
+		Group {
+			if dictationPhase == .listening {
+				ListeningWaveform()
+			} else {
+				Image(systemName: "mic.fill")
+					.font(.system(size: 28, weight: .semibold))
+			}
+		}
+			.foregroundStyle(.white)
+			.frame(width: 136, height: 72)
+			.background(
+				dictationPhase == .listening
+					? Color(red: 0.75, green: 0.22, blue: 0.2)
+					: Color.black.opacity(0.88),
+				in: Capsule()
+			)
+	}
+
 	private var voiceStatusText: String {
 		if linkStatus != .connected { return "先开启完全访问" }
+		if !sessionAlive && !activationReady {
+			return hostResolutionFailed ? "当前应用暂不支持自动返回" : "正在准备语音输入…"
+		}
 		return dictationPhase.statusLine
 	}
 
@@ -737,5 +861,44 @@ struct KeyboardRootView: View {
 			? enabled[(idx + 1) % enabled.count]
 			: enabled[(idx - 1 + enabled.count) % enabled.count]
 		withAnimation(.easeOut(duration: 0.15)) { mode = next }
+	}
+}
+
+/// Scrolling mic-level history, mirroring the desktop `VoiceWaveform`:
+/// every tick pushes the real level (written by the main app via App Group)
+/// into a ring buffer; bars scroll left and rise with the voice.
+private struct ListeningWaveform: View {
+	private static let barCount = 26
+	@State private var bars: [Double] = Array(repeating: 0, count: ListeningWaveform.barCount)
+	private let timer = Timer.publish(every: 0.095, on: .main, in: .common).autoconnect()
+
+	var body: some View {
+		HStack(spacing: 2) {
+			ForEach(bars.indices, id: \.self) { index in
+				Capsule()
+					.frame(width: 2.5, height: max(3, bars[index] * 34))
+			}
+		}
+		.animation(.linear(duration: 0.07), value: bars)
+		.mask(
+			LinearGradient(
+				stops: [
+					.init(color: .clear, location: 0),
+					.init(color: .black, location: 0.16),
+					.init(color: .black, location: 0.84),
+					.init(color: .clear, location: 1),
+				],
+				startPoint: .leading,
+				endPoint: .trailing
+			)
+		)
+		.onReceive(timer) { _ in
+			let raw = UserDefaults(suiteName: AppGroupConstants.suiteName)?
+				.double(forKey: "dictation.level") ?? 0
+			let gated = raw < 0.035 ? 0 : raw
+			let value = min(1, max(0, pow(gated, 0.72)))
+			bars.removeFirst()
+			bars.append(value)
+		}
 	}
 }

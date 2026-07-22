@@ -11,17 +11,17 @@ final class AudioCaptureEngine: ObservableObject {
 	@Published private(set) var isRunning = false
 
 	/// When false, PCM callbacks are suppressed but the engine may still run (warm mode).
-	nonisolated(unsafe) var feedEnabled = true
+	nonisolated var feedEnabled: Bool {
+		get { tapState.feedEnabled }
+		set { tapState.feedEnabled = newValue }
+	}
 
 	private var engine: AVAudioEngine?
-	private var converter: AVAudioConverter?
-	private var onPCM: ((Data) -> Void)?
-	private var onLevel: ((Double) -> Void)?
+	private nonisolated let tapState = AudioTapState()
 
 	func start(onPCM: @escaping (Data) -> Void, onLevel: ((Double) -> Void)? = nil) -> Bool {
 		stop()
-		self.onPCM = onPCM
-		self.onLevel = onLevel
+		configureTapState(onPCM: onPCM, onLevel: onLevel)
 		feedEnabled = true
 		return startEngine()
 	}
@@ -29,25 +29,26 @@ final class AudioCaptureEngine: ObservableObject {
 	/// Keep the mic engine warm without delivering PCM until `feedEnabled = true`.
 	func startWarm(onPCM: @escaping (Data) -> Void, onLevel: ((Double) -> Void)? = nil) -> Bool {
 		stop()
-		self.onPCM = onPCM
-		self.onLevel = onLevel
+		configureTapState(onPCM: onPCM, onLevel: onLevel)
 		feedEnabled = false
 		return startEngine()
 	}
 
-	func stop() {
+	/// `deactivateSession: false` keeps the shared AVAudioSession alive so a
+	/// coexisting PiP player isn't paused (which would tear down the PiP window).
+	func stop(deactivateSession: Bool = true) {
 		if let engine {
 			engine.inputNode.removeTap(onBus: 0)
 			engine.stop()
 		}
 		engine = nil
-		converter = nil
-		onPCM = nil
-		onLevel = nil
+		tapState.clear()
 		level = 0
 		isRunning = false
 		feedEnabled = true
-		try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+		if deactivateSession {
+			try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+		}
 	}
 
 	private func startEngine() -> Bool {
@@ -69,30 +70,21 @@ final class AudioCaptureEngine: ObservableObject {
 				interleaved: true
 			)!
 			let converter = AVAudioConverter(from: inputFormat, to: targetFormat)
-			self.converter = converter
 
-			input.installTap(onBus: 0, bufferSize: 1_024, format: inputFormat) { [weak self] buffer, _ in
-				guard let self else { return }
-				self.publishLevel(from: buffer)
-				guard self.feedEnabled, let converter = self.converter else { return }
-				let ratio = targetFormat.sampleRate / inputFormat.sampleRate
-				let outFrames = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
-				guard let outBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: outFrames) else { return }
-				var error: NSError?
-				let inputBlock: AVAudioConverterInputBlock = { _, status in
-					status.pointee = .haveData
-					return buffer
-				}
-				converter.convert(to: outBuffer, error: &error, withInputFrom: inputBlock)
-				guard error == nil, outBuffer.frameLength > 0,
-				      let channels = outBuffer.int16ChannelData else { return }
-				let byteCount = Int(outBuffer.frameLength) * MemoryLayout<Int16>.size
-				let data = Data(bytes: channels[0], count: byteCount)
-				Task { @MainActor [weak self] in
-					guard let self, self.feedEnabled else { return }
-					self.onPCM?(data)
-				}
-			}
+			// The tap block must be built in a nonisolated context: a closure literal formed
+			// inside this MainActor method inherits MainActor isolation, and AVFAudio invokes
+			// it on the realtime messenger queue -> runtime isolation assert -> SIGTRAP.
+			input.installTap(
+				onBus: 0,
+				bufferSize: 1_024,
+				format: inputFormat,
+				block: Self.makeTapBlock(
+					tapState: tapState,
+					converter: converter,
+					inputFormat: inputFormat,
+					targetFormat: targetFormat
+				)
+			)
 
 			engine.prepare()
 			try engine.start()
@@ -105,23 +97,96 @@ final class AudioCaptureEngine: ObservableObject {
 		}
 	}
 
-	private nonisolated func publishLevel(from buffer: AVAudioPCMBuffer) {
-		guard let channel = buffer.floatChannelData?[0] else { return }
+	private func configureTapState(onPCM: @escaping (Data) -> Void, onLevel: ((Double) -> Void)?) {
+		tapState.configure(
+			onPCM: onPCM,
+			onLevel: { [weak self] target in
+				guard let self else { return }
+				let smoothed = self.level + (target - self.level) * (target > self.level ? 0.62 : 0.28)
+				let next = smoothed < 0.008 ? 0 : smoothed
+				self.level = next
+				onLevel?(next)
+			}
+		)
+	}
+
+	private nonisolated static func makeTapBlock(
+		tapState: AudioTapState,
+		converter: AVAudioConverter?,
+		inputFormat: AVAudioFormat,
+		targetFormat: AVAudioFormat
+	) -> AVAudioNodeTapBlock {
+		{ buffer, _ in
+			if let target = Self.normalizedLevel(from: buffer) {
+				Task { @MainActor in tapState.deliverLevel(target) }
+			}
+			guard tapState.feedEnabled, let converter else { return }
+			let ratio = targetFormat.sampleRate / inputFormat.sampleRate
+			let outFrames = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
+			guard let outBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: outFrames) else { return }
+			var error: NSError?
+			// Safe: the converter consumes the block synchronously within this tap callback.
+			nonisolated(unsafe) let inputBuffer = buffer
+			let inputBlock: AVAudioConverterInputBlock = { _, status in
+				status.pointee = .haveData
+				return inputBuffer
+			}
+			converter.convert(to: outBuffer, error: &error, withInputFrom: inputBlock)
+			guard error == nil, outBuffer.frameLength > 0,
+			      let channels = outBuffer.int16ChannelData else { return }
+			let byteCount = Int(outBuffer.frameLength) * MemoryLayout<Int16>.size
+			let data = Data(bytes: channels[0], count: byteCount)
+			Task { @MainActor in
+				guard tapState.feedEnabled else { return }
+				tapState.deliverPCM(data)
+			}
+		}
+	}
+
+	private nonisolated static func normalizedLevel(from buffer: AVAudioPCMBuffer) -> Double? {
+		guard let channel = buffer.floatChannelData?[0] else { return nil }
 		let count = Int(buffer.frameLength)
-		guard count > 0 else { return }
+		guard count > 0 else { return nil }
 		var sum = Float.zero
 		for index in 0..<count {
 			sum += channel[index] * channel[index]
 		}
 		let rms = sqrt(sum / Float(count))
 		let decibels = 20 * log10(max(rms, 0.0001))
-		let target = VoiceWaveformMath.normalizedLevel(decibels: decibels)
-		Task { @MainActor [weak self] in
-			guard let self else { return }
-			let smoothed = self.level + (target - self.level) * (target > self.level ? 0.62 : 0.28)
-			let next = smoothed < 0.008 ? 0 : smoothed
-			self.level = next
-			self.onLevel?(next)
-		}
+		return VoiceWaveformMath.normalizedLevel(decibels: decibels)
+	}
+}
+
+private final class AudioTapState: @unchecked Sendable {
+	private let lock = NSLock()
+	private var feeding = true
+	private var onPCM: ((Data) -> Void)?
+	private var onLevel: ((Double) -> Void)?
+
+	var feedEnabled: Bool {
+		get { lock.withLock { feeding } }
+		set { lock.withLock { feeding = newValue } }
+	}
+
+	@MainActor
+	func configure(onPCM: @escaping (Data) -> Void, onLevel: @escaping (Double) -> Void) {
+		self.onPCM = onPCM
+		self.onLevel = onLevel
+	}
+
+	@MainActor
+	func clear() {
+		onPCM = nil
+		onLevel = nil
+	}
+
+	@MainActor
+	func deliverPCM(_ data: Data) {
+		onPCM?(data)
+	}
+
+	@MainActor
+	func deliverLevel(_ value: Double) {
+		onLevel?(value)
 	}
 }

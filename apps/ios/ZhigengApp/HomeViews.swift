@@ -354,10 +354,14 @@ struct HomeView: View {
 					.foregroundStyle(.secondary)
 					.frame(maxWidth: 260)
 			case let .sessionActive(remaining, mode):
-				Text("键盘点声波，直接说")
+				Text("键盘点麦克风，直接说")
 					.font(.system(size: 26, weight: .bold))
 					.tracking(-0.4)
-				Text("\(mode) · 剩余 \(formatRemaining(remaining))，无需反复切换 App。")
+				Text(
+					mode == SessionMode.pip.rawValue
+						? "\(mode) · 剩余 \(formatRemaining(remaining))。小窗可拖到屏幕边缘，回到刚才的 App 继续说。"
+						: "\(mode) · 剩余 \(formatRemaining(remaining))，无需反复切换 App。"
+				)
 					.font(.subheadline)
 					.foregroundStyle(.secondary)
 					.frame(maxWidth: 260)
@@ -521,7 +525,7 @@ struct HomeView: View {
 			VStack(alignment: .leading, spacing: 2) {
 				Text(isSessionActive ? "即听即写已开启" : "从键盘开始")
 					.font(.subheadline.weight(.semibold))
-				Text(isSessionActive ? "任意 App 切到知更键盘，点声波即可。" : "打开微信，切换到知更键盘即可听写。")
+				Text(isSessionActive ? "任意 App 切到知更键盘，点麦克风即可。" : "打开微信，切换到知更键盘即可听写。")
 					.font(.caption)
 					.foregroundStyle(.secondary)
 					.fixedSize(horizontal: false, vertical: true)

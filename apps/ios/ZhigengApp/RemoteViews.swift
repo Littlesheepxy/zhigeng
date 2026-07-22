@@ -43,6 +43,16 @@ struct RemoteHomeView: View {
 				} footer: {
 					Text("日常任务请从首页「执行」进入。")
 				}
+
+				Section {
+					Button("退出登录", role: .destructive) {
+						remote.signOutAccount()
+					}
+				} footer: {
+					if let base = remote.accountApiBase {
+						Text("账户 API：\(base.absoluteString)")
+					}
+				}
 			}
 		}
 		.navigationTitle(remote.signedIn ? "Mac 设备" : "连接 Mac")
@@ -593,6 +603,109 @@ private struct RemoteApprovalView: View {
 			.navigationBarTitleDisplayMode(.inline)
 		}
 		.interactiveDismissDisabled()
+	}
+}
+
+/// Email login for ASR / account without requiring Mac QR pairing.
+struct AccountLoginView: View {
+	@Bindable var remote: RemoteStore
+	@State private var apiBaseText = RemoteStore.defaultAccountApiBase.absoluteString
+	@State private var codeRequested = false
+	@State private var localEmail = ""
+	@State private var localCode = ""
+
+	var body: some View {
+		Form {
+			if remote.signedIn {
+				Section {
+					Label("已登录", systemImage: "checkmark.circle.fill")
+						.foregroundStyle(Brand.success)
+					Text(remote.email.isEmpty ? "账户可用" : remote.email)
+					if let base = remote.accountApiBase {
+						Text(base.absoluteString)
+							.font(.caption)
+							.foregroundStyle(.secondary)
+					}
+				}
+				Section {
+					NavigationLink {
+						RemoteHomeView(remote: remote)
+					} label: {
+						Label("连接 Mac（可选）", systemImage: "desktopcomputer")
+					}
+					Button("退出登录", role: .destructive) {
+						remote.signOutAccount()
+						codeRequested = false
+						localCode = ""
+					}
+				} footer: {
+					Text("听写只需要账户登录；连 Mac 是远程执行用的。")
+				}
+			} else {
+				Section {
+					Text("登录后才能使用豆包听写。开发模式验证码是 888888。")
+						.font(.subheadline)
+						.foregroundStyle(.secondary)
+				}
+
+				Section("账户 API") {
+					TextField("http://172.16.1.15:3010", text: $apiBaseText)
+						.textInputAutocapitalization(.never)
+						.autocorrectionDisabled()
+						.keyboardType(.URL)
+				}
+
+				Section("知更账户") {
+					TextField("邮箱", text: $localEmail)
+						.textInputAutocapitalization(.never)
+						.keyboardType(.emailAddress)
+						.autocorrectionDisabled()
+					if codeRequested {
+						TextField("6 位验证码", text: $localCode)
+							.keyboardType(.numberPad)
+					}
+					Button(codeRequested ? "登录" : "发送验证码") {
+						Task { await submit() }
+					}
+					.disabled(remote.isBusy || localEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+				}
+
+				Section {
+					NavigationLink {
+						RemoteHomeView(remote: remote)
+					} label: {
+						Label("改用扫码连接 Mac", systemImage: "qrcode.viewfinder")
+					}
+				}
+			}
+
+			if let error = remote.error {
+				Section {
+					Text(error).foregroundStyle(.red)
+				}
+			}
+		}
+		.navigationTitle(remote.signedIn ? "账户" : "登录账户")
+		.navigationBarTitleDisplayMode(.inline)
+		.onAppear {
+			if !remote.email.isEmpty { localEmail = remote.email }
+			apiBaseText = RemoteStore.defaultAccountApiBase.absoluteString
+		}
+	}
+
+	private func submit() async {
+		guard let apiBase = URL(string: apiBaseText.trimmingCharacters(in: .whitespacesAndNewlines)),
+		      apiBase.host != nil
+		else {
+			remote.error = "请填写有效的账户 API 地址"
+			return
+		}
+		if codeRequested {
+			_ = await remote.signInStandalone(apiBase: apiBase, email: localEmail, code: localCode)
+		} else {
+			await remote.requestStandaloneCode(apiBase: apiBase, email: localEmail)
+			if remote.error == nil { codeRequested = true }
+		}
 	}
 }
 

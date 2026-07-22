@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os.log
 import UIKit
 import ZhigengCore
 
@@ -26,23 +27,105 @@ final class KeyboardSessionController {
 	private var commandTimer: Timer?
 	private var expiryTimer: Timer?
 	private var pipHostView: UIView?
+	private var returnBundleId: String?
+	private var pipStarted = false
+	private var audioStartedForReturn = false
 
 	init(store: AppStore) {
 		self.store = store
+		liveActivity.endOrphanedActivities()
 		pip.onStopped = { [weak self] in
 			Task { @MainActor in
 				guard let self, self.mode == .pip, self.isRunning else { return }
 				self.end(reason: "画中画已关闭")
 			}
 		}
+		pip.onStarted = { [weak self] in
+			guard let self else { return }
+			self.pipStarted = true
+			Self.logDiagnostic("PiP started")
+			self.store.serviceError = nil
+			self.returnToHostIfReady()
+		}
+		pip.onFailed = { [weak self] message in
+			guard let self else { return }
+			NSLog("[ZG] pip onFailed: \(message)")
+			self.returnBundleId = nil
+			self.lastError = "画中画启动失败：\(message)"
+			self.store.serviceError = self.lastError
+		}
 	}
 
-	func start(mode: DictationSessionMode, durationMinutes: Int) {
+	private func returnToHostApp() {
+		guard let returnBundleId else { return }
+		self.returnBundleId = nil
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+			let opened = Self.openApplication(bundleId: returnBundleId)
+			NSLog("[ZG] opening host bundle \(returnBundleId): \(opened)")
+			if !opened {
+				self?.lastError = "无法自动返回原应用，请点左上角返回"
+				self?.store.serviceError = self?.lastError
+			}
+		}
+	}
+
+	func returnToHostApp(bundleId: String?) {
+		guard mode == .pip, let bundleId else { return }
+		returnBundleId = bundleId
+		audioStartedForReturn = false
+		pipStarted = pip.isActive
+		returnToHostIfReady()
+	}
+
+	private func returnToHostIfReady() {
+		Self.logDiagnostic(
+			"return check pip=\(pipStarted) audio=\(audioStartedForReturn) host=\(returnBundleId ?? "nil")"
+		)
+		guard pipStarted, audioStartedForReturn, returnBundleId != nil else { return }
+		returnToHostApp()
+	}
+
+	/// Prompt-free host return. Private API/App Store review risk.
+	/// ponytail: replace when Apple exposes a public keyboard-host return API.
+	private static func openApplication(bundleId: String) -> Bool {
+		guard let workspaceClass = NSClassFromString("LSApplicationWorkspace") as? NSObject.Type else {
+			return false
+		}
+		let sharedSelector = NSSelectorFromString("defaultWorkspace")
+		guard workspaceClass.responds(to: sharedSelector),
+		      let workspace = workspaceClass.perform(sharedSelector)?
+				.takeUnretainedValue() as? NSObject
+		else { return false }
+		let openSelector = NSSelectorFromString("openApplicationWithBundleID:")
+		guard workspace.responds(to: openSelector) else { return false }
+		typealias OpenFunction = @convention(c) (AnyObject, Selector, NSString) -> Bool
+		let function = unsafeBitCast(workspace.method(for: openSelector), to: OpenFunction.self)
+		return function(workspace, openSelector, bundleId as NSString)
+	}
+
+	private static func logDiagnostic(_ message: String) {
+		os_log(
+			"%{public}@",
+			log: OSLog(subsystem: "app.zhigeng.ios", category: "session"),
+			type: .fault,
+			"[ZG] \(message)"
+		)
+	}
+
+	func start(
+		mode: DictationSessionMode,
+		durationMinutes: Int,
+		initialRequestId: String? = nil,
+		returnBundleId: String? = nil
+	) {
 		end(silent: true)
 		lastError = nil
+		pipStarted = false
+		audioStartedForReturn = false
 		let until = Date().timeIntervalSince1970 + TimeInterval(durationMinutes * 60)
 		self.mode = mode
 		self.activeUntil = until
+		self.returnBundleId = returnBundleId
 
 		do {
 			switch mode {
@@ -70,9 +153,15 @@ final class KeyboardSessionController {
 		)
 		store.sessionActiveUntil = until
 		store.serviceError = nil
+		if let initialRequestId {
+			beginRecording(requestId: initialRequestId)
+		}
 	}
 
 	func end(reason: String? = nil, silent: Bool = false) {
+		returnBundleId = nil
+		pipStarted = false
+		audioStartedForReturn = false
 		stopRecording(abort: true)
 		heartbeatTimer?.invalidate()
 		commandTimer?.invalidate()
@@ -102,11 +191,34 @@ final class KeyboardSessionController {
 	// MARK: - Keepalive
 
 	private func startWarmMic() -> Bool {
-		capture.startWarm(onPCM: { [weak self] data in
-			Task { @MainActor in
-				self?.client?.sendPCM(data)
+		capture.startWarm(
+			onPCM: { [weak self] data in
+				Task { @MainActor in
+					self?.client?.sendPCM(data)
+				}
+			},
+			onLevel: { [weak self] level in
+				self?.publishLevel(level)
 			}
-		})
+		)
+	}
+
+	// MARK: - Mic level -> App Group (keyboard waveform)
+
+	private let levelDefaults = UserDefaults(suiteName: AppGroupConstants.suiteName)
+	private var lastLevelWrite: TimeInterval = 0
+
+	/// Throttled to ~12 Hz; the keyboard samples it every ~95 ms for its waveform.
+	private func publishLevel(_ level: Double) {
+		guard recording else { return }
+		let now = Date().timeIntervalSince1970
+		guard now - lastLevelWrite >= 0.08 else { return }
+		lastLevelWrite = now
+		levelDefaults?.set(level, forKey: "dictation.level")
+	}
+
+	private func resetLevel() {
+		levelDefaults?.set(0.0, forKey: "dictation.level")
 	}
 
 	private func startPiPKeepAlive() throws {
@@ -186,12 +298,20 @@ final class KeyboardSessionController {
 		case .liveActivity:
 			capture.feedEnabled = true
 		case .pip:
-			guard capture.start(onPCM: { [weak self] data in
-				Task { @MainActor in self?.client?.sendPCM(data) }
-			}) else {
+			guard capture.start(
+				onPCM: { [weak self] data in
+					Task { @MainActor in self?.client?.sendPCM(data) }
+				},
+				onLevel: { [weak self] level in
+					self?.publishLevel(level)
+				}
+			) else {
 				failRecording("麦克风暂时不可用")
 				return
 			}
+			audioStartedForReturn = true
+			Self.logDiagnostic("audio capture started request=\(requestId)")
+			returnToHostIfReady()
 		case .none:
 			failRecording("会话未启动")
 			return
@@ -205,9 +325,10 @@ final class KeyboardSessionController {
 
 	private func finishRecording() {
 		guard recording else { return }
+		resetLevel()
 		capture.feedEnabled = false
 		if mode == .pip {
-			capture.stop()
+			capture.stop(deactivateSession: false)
 		}
 		writeSession(state: .processing)
 		liveActivity.update(status: "整理中", remainingSeconds: remainingSeconds())
@@ -215,9 +336,10 @@ final class KeyboardSessionController {
 	}
 
 	private func stopRecording(abort: Bool) {
+		resetLevel()
 		capture.feedEnabled = false
 		if mode == .pip {
-			capture.stop()
+			capture.stop(deactivateSession: false)
 		}
 		if abort {
 			client?.abort()
@@ -243,6 +365,7 @@ final class KeyboardSessionController {
 		guard let requestId = currentRequestId else { return }
 		switch event {
 		case .ready:
+			Self.logDiagnostic("ASR ready request=\(requestId)")
 			liveActivity.update(status: "正在听", remainingSeconds: remainingSeconds())
 		case let .partial(text):
 			revision += 1
@@ -281,13 +404,14 @@ final class KeyboardSessionController {
 			recording = false
 			currentRequestId = nil
 			if mode == .pip {
-				capture.stop()
+				capture.stop(deactivateSession: false)
 			} else {
 				capture.feedEnabled = false
 			}
 			writeSession(state: .idle)
 			liveActivity.update(status: "待命中", remainingSeconds: remainingSeconds())
 		case let .failed(message):
+			Self.logDiagnostic("ASR failed request=\(requestId) error=\(message)")
 			revision += 1
 			writeResult(
 				DictationResult(

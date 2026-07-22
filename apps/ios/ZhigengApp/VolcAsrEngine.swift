@@ -12,27 +12,51 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 
 	private let engine = SpeechEngine()
 	private let queue = DispatchQueue(label: "app.zhigeng.volc-asr")
+	private let queueKey = DispatchSpecificKey<Void>()
 	private let onEvent: @Sendable (AsrStreamEvent) -> Void
 	private var running = false
+	private var ready = false
 	private var finishRequested = false
+	private var created = false
 
 	init(onEvent: @escaping @Sendable (AsrStreamEvent) -> Void) {
 		self.onEvent = onEvent
 		super.init()
+		queue.setSpecific(key: queueKey, value: ())
+	}
+
+	deinit {
+		syncOnQueue {
+			if created {
+				_ = engine.send(SEDirectiveSyncStopEngine)
+				engine.destroy()
+				created = false
+			}
+		}
 	}
 
 	static func prepareEnvironment() {
 		_ = SpeechEngine.prepareEnvironment()
 	}
 
-	func configure(credentials: Credentials, hotWords: [String]) -> Bool {
+	func configure(credentials: Credentials, hotWords: [String], uid: String) -> Bool {
 		var ok = false
-		queue.sync {
+		syncOnQueue {
+			if created {
+				_ = engine.send(SEDirectiveSyncStopEngine)
+				engine.destroy()
+				created = false
+			}
+			ready = false
+			running = false
+			finishRequested = false
 			guard engine.createEngine(with: self) else { return }
+			created = true
 			engine.setStringParam(SE_ASR_ENGINE, forKey: SE_PARAMS_KEY_ENGINE_NAME_STRING)
 			engine.setStringParam(credentials.appId, forKey: SE_PARAMS_KEY_APP_ID_STRING)
 			engine.setStringParam(credentials.token, forKey: SE_PARAMS_KEY_APP_TOKEN_STRING)
 			engine.setStringParam(credentials.cluster, forKey: SE_PARAMS_KEY_ASR_CLUSTER_STRING)
+			engine.setStringParam(uid, forKey: SE_PARAMS_KEY_UID_STRING)
 			engine.setStringParam("wss://openspeech.bytedance.com", forKey: SE_PARAMS_KEY_ASR_ADDRESS_STRING)
 			engine.setStringParam("/api/v2/asr", forKey: SE_PARAMS_KEY_ASR_URI_STRING)
 			engine.setStringParam(SE_RECORDER_TYPE_STREAM, forKey: SE_PARAMS_KEY_RECORDER_TYPE_STRING)
@@ -54,8 +78,9 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 
 	func start() -> Bool {
 		var ok = false
-		queue.sync {
+		syncOnQueue {
 			finishRequested = false
+			ready = false
 			ok = engine.send(SEDirectiveStartEngine) == SENoError
 			running = ok
 		}
@@ -63,9 +88,9 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 	}
 
 	func sendPCM(_ data: Data) {
-		guard running, !data.isEmpty else { return }
+		guard !data.isEmpty else { return }
 		queue.async { [weak self] in
-			guard let self, self.running else { return }
+			guard let self, self.running, self.ready else { return }
 			var buffer = data
 			let sampleCount = buffer.count / MemoryLayout<Int16>.size
 			guard sampleCount > 0 else { return }
@@ -85,21 +110,29 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 	}
 
 	func abort() {
-		queue.sync { [weak self] in
+		syncOnQueue { [weak self] in
 			guard let self else { return }
 			self.running = false
-			_ = self.engine.send(SEDirectiveSyncStopEngine)
-			self.engine.destroy()
+			self.ready = false
+			if self.created {
+				_ = self.engine.send(SEDirectiveSyncStopEngine)
+				self.engine.destroy()
+				self.created = false
+			}
 		}
 		emit(.done(VoiceResult(text: "", directStructured: false, incomplete: false)))
 	}
 
 	func close() {
-		queue.sync { [weak self] in
+		syncOnQueue { [weak self] in
 			guard let self else { return }
 			self.running = false
-			_ = self.engine.send(SEDirectiveSyncStopEngine)
-			self.engine.destroy()
+			self.ready = false
+			if self.created {
+				_ = self.engine.send(SEDirectiveSyncStopEngine)
+				self.engine.destroy()
+				self.created = false
+			}
 		}
 	}
 
@@ -107,21 +140,32 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 		let payload = String(data: data, encoding: .utf8) ?? ""
 		switch type {
 		case SEEngineStart, SEConnectionConnected:
+			queue.async { [weak self] in
+				self?.ready = true
+			}
 			emit(.ready)
 		case SEPartialResult, SEAsrPartialResult:
 			if let text = Self.extractText(from: payload), !text.isEmpty {
 				emit(.partial(text))
 			}
 		case SEFinalResult:
-			let text = Self.extractText(from: payload) ?? ""
-			running = false
-			emit(.done(VoiceResult(text: text, directStructured: false, incomplete: false)))
+			queue.async { [weak self] in
+				self?.running = false
+				self?.ready = false
+			}
+			emit(.done(VoiceResult(text: Self.extractText(from: payload) ?? "", directStructured: false, incomplete: false)))
 		case SEEngineError:
-			running = false
+			queue.async { [weak self] in
+				self?.running = false
+				self?.ready = false
+			}
 			emit(.failed(Self.extractError(from: payload) ?? "豆包识别失败"))
 		case SEEngineStop:
 			if finishRequested {
-				running = false
+				queue.async { [weak self] in
+					self?.running = false
+					self?.ready = false
+				}
 			}
 		default:
 			break
@@ -130,6 +174,14 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 
 	private func emit(_ event: AsrStreamEvent) {
 		onEvent(event)
+	}
+
+	private func syncOnQueue(_ operation: () -> Void) {
+		if DispatchQueue.getSpecific(key: queueKey) != nil {
+			operation()
+		} else {
+			queue.sync(execute: operation)
+		}
 	}
 
 	private static func hotWordsJSON(_ words: [String]) -> String? {

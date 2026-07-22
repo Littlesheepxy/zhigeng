@@ -8,6 +8,7 @@ final class VolcAsrClient: @unchecked Sendable {
 		var authToken: String
 		var hotWords: [String]
 		var finishTimeoutMs: Int = 8_000
+		var uid: String = "zhigeng-ios"
 	}
 
 	private struct TokenResponse: Decodable {
@@ -24,6 +25,8 @@ final class VolcAsrClient: @unchecked Sendable {
 	private var lastPartial = ""
 	private let lock = NSLock()
 	private var started = false
+	private var engineReady = false
+	private var pendingPCM: [Data] = []
 
 	init(config: Config, onEvent: @escaping @Sendable (AsrStreamEvent) -> Void) {
 		self.config = config
@@ -37,6 +40,8 @@ final class VolcAsrClient: @unchecked Sendable {
 			return
 		}
 		started = true
+		engineReady = false
+		pendingPCM.removeAll(keepingCapacity: true)
 		lock.unlock()
 
 		Task {
@@ -52,23 +57,37 @@ final class VolcAsrClient: @unchecked Sendable {
 						cluster: credentials.cluster,
 						token: credentials.token
 					),
-					hotWords: config.hotWords
+					hotWords: config.hotWords,
+					uid: config.uid
 				), engine.start()
 				else {
 					fail("豆包引擎初始化失败")
 					return
 				}
 			} catch {
-				fail(error.localizedDescription)
+				fail(Self.describe(error))
 			}
 		}
 	}
 
 	func sendPCM(_ data: Data) {
-		engine?.sendPCM(data)
+		lock.lock()
+		defer { lock.unlock() }
+		guard started, !data.isEmpty else { return }
+		if engineReady {
+			engine?.sendPCM(data)
+		} else {
+			// ponytail: buffer until SDK ready; ceiling ~2s of 16k mono PCM (~64KB), then drop oldest
+			pendingPCM.append(data)
+			var total = pendingPCM.reduce(0) { $0 + $1.count }
+			while total > 64_000, !pendingPCM.isEmpty {
+				total -= pendingPCM.removeFirst().count
+			}
+		}
 	}
 
 	func finish() {
+		flushPendingPCM()
 		scheduleFinishTimeout()
 		engine?.finish()
 	}
@@ -88,6 +107,14 @@ final class VolcAsrClient: @unchecked Sendable {
 	private func handleEngineEvent(_ event: AsrStreamEvent) {
 		switch event {
 		case .ready:
+			lock.lock()
+			engineReady = true
+			let buffered = pendingPCM
+			pendingPCM.removeAll(keepingCapacity: true)
+			lock.unlock()
+			for chunk in buffered {
+				engine?.sendPCM(chunk)
+			}
 			emit(.ready)
 		case let .partial(text):
 			lastPartial = text
@@ -100,6 +127,17 @@ final class VolcAsrClient: @unchecked Sendable {
 			finishTimeoutWork?.cancel()
 			emit(.failed(message))
 			cleanup()
+		}
+	}
+
+	private func flushPendingPCM() {
+		lock.lock()
+		let buffered = pendingPCM
+		pendingPCM.removeAll(keepingCapacity: true)
+		engineReady = true
+		lock.unlock()
+		for chunk in buffered {
+			engine?.sendPCM(chunk)
 		}
 	}
 
@@ -127,6 +165,7 @@ final class VolcAsrClient: @unchecked Sendable {
 			throw VolcAsrClientError.invalidURL
 		}
 		var request = URLRequest(url: url)
+		request.timeoutInterval = 12
 		request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
 		let (data, response) = try await URLSession.shared.data(for: request)
 		guard let http = response as? HTTPURLResponse else {
@@ -147,6 +186,26 @@ final class VolcAsrClient: @unchecked Sendable {
 		}
 	}
 
+	private static func describe(_ error: Error) -> String {
+		if let volc = error as? VolcAsrClientError {
+			return volc.errorDescription ?? "识别失败"
+		}
+		let ns = error as NSError
+		if ns.domain == NSURLErrorDomain {
+			switch ns.code {
+			case NSURLErrorTimedOut:
+				return "连接账户服务超时，请确认 Mac 上 account-api 已启动"
+			case NSURLErrorCannotConnectToHost, NSURLErrorNetworkConnectionLost, NSURLErrorNotConnectedToInternet:
+				return "无法连接账户服务，请检查 API 地址与同一 Wi-Fi"
+			case NSURLErrorCannotFindHost:
+				return "找不到账户服务地址，请在「我的 → 登录」核对 API"
+			default:
+				break
+			}
+		}
+		return error.localizedDescription
+	}
+
 	private func fail(_ message: String) {
 		emit(.failed(message))
 		cleanup()
@@ -159,9 +218,14 @@ final class VolcAsrClient: @unchecked Sendable {
 	private func cleanup() {
 		finishTimeoutWork?.cancel()
 		finishTimeoutWork = nil
+		if let engine {
+			engine.close()
+		}
 		engine = nil
 		lock.lock()
 		started = false
+		engineReady = false
+		pendingPCM.removeAll(keepingCapacity: false)
 		lock.unlock()
 	}
 }

@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import Observation
+import os.log
 import UIKit
 import ZhigengCore
 
@@ -246,14 +247,16 @@ final class AppStore {
 		defaults.set(duration.rawValue, forKey: "sessionDuration")
 	}
 
-	func startSession() {
+	func startSession(initialRequestId: String? = nil, returnBundleId: String? = nil) {
 		showSessionSheet = false
 		serviceError = nil
 		defaults.set(sessionMode.rawValue, forKey: "sessionMode")
 		defaults.set(sessionDuration.rawValue, forKey: "sessionDuration")
 		keyboardSession.start(
 			mode: sessionMode.protocolMode,
-			durationMinutes: sessionDuration.rawValue
+			durationMinutes: sessionDuration.rawValue,
+			initialRequestId: initialRequestId,
+			returnBundleId: returnBundleId
 		)
 		if let error = keyboardSession.lastError {
 			serviceError = error
@@ -288,24 +291,44 @@ final class AppStore {
 		showSessionSheet = true
 	}
 
-	func requestMicThenStart() {
+	func requestMicThenStart(initialRequestId: String? = nil, returnBundleId: String? = nil) {
 		if microphoneGranted {
-			startSession()
+			startSession(initialRequestId: initialRequestId, returnBundleId: returnBundleId)
 		} else {
 			requestMicrophone { [weak self] granted in
-				if granted { self?.startSession() }
+				if granted {
+					self?.startSession(
+						initialRequestId: initialRequestId,
+						returnBundleId: returnBundleId
+					)
+				}
 			}
 		}
 	}
 
 	/// Keyboard asked to activate keepalive (`zhigeng://activate`).
-	func activateSessionFromKeyboard() {
-		if keyboardSession.isRunning { return }
-		if sessionConfigured {
-			requestMicThenStart()
-		} else {
-			showSessionSheet = true
+	func activateSessionFromKeyboard(requestId: String?, returnBundleId: String?) {
+		os_log(
+			"%{public}@",
+			log: OSLog(subsystem: "app.zhigeng.ios", category: "activation"),
+			type: .fault,
+			"[ZG] activate request=\(requestId ?? "nil") host=\(returnBundleId ?? "nil") running=\(keyboardSession.isRunning)"
+		)
+		if keyboardSession.isRunning {
+			if let requestId {
+				try? bridge.writeCommand(DictationCommand(kind: .start, requestId: requestId))
+			}
+			keyboardSession.returnToHostApp(bundleId: returnBundleId)
+			return
 		}
+		// Keyboard activation starts PiP + recording, then returns to the host.
+		setSessionMode(.pip)
+		sessionConfigured = true
+		defaults.set(true, forKey: "sessionConfigured")
+		requestMicThenStart(
+			initialRequestId: requestId,
+			returnBundleId: returnBundleId
+		)
 	}
 
 	@discardableResult

@@ -102,7 +102,7 @@ struct MeView: View {
 
 	private var accountHero: some View {
 		NavigationLink {
-			RemoteHomeView(remote: store.remote)
+			AccountLoginView(remote: store.remote)
 		} label: {
 			ZStack {
 				MistBackdrop()

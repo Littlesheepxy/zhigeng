@@ -16,6 +16,9 @@ settings:
 packages:
   ZhigengCore:
     path: .
+  KeyboardHostBundleID:
+    url: https://github.com/Muskupecli/KeyboardHostBundleID.git
+    exactVersion: 1.0.1
 
 targets:
   Zhigeng:
@@ -63,6 +66,8 @@ targets:
     dependencies:
       - package: ZhigengCore
         product: ZhigengCore
+      - package: KeyboardHostBundleID
+        product: KeyboardHostBundleID
 
   ZhigengLiveActivity:
     type: app-extension
@@ -70,6 +75,8 @@ targets:
     sources:
       - path: ZhigengLiveActivity
       - path: Shared
+      - path: ../../prototypes/zhigeng-mobile/public/robin.png
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.zhigeng.ios.liveactivity
