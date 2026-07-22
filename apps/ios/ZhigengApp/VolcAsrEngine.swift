@@ -6,7 +6,7 @@ import ZhigengCore
 final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 	struct Credentials: Sendable {
 		let appId: String
-		let cluster: String
+		let resourceId: String
 		let token: String
 	}
 
@@ -55,10 +55,11 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 			engine.setStringParam(SE_ASR_ENGINE, forKey: SE_PARAMS_KEY_ENGINE_NAME_STRING)
 			engine.setStringParam(credentials.appId, forKey: SE_PARAMS_KEY_APP_ID_STRING)
 			engine.setStringParam(credentials.token, forKey: SE_PARAMS_KEY_APP_TOKEN_STRING)
-			engine.setStringParam(credentials.cluster, forKey: SE_PARAMS_KEY_ASR_CLUSTER_STRING)
+			engine.setIntParam(Int(SEProtocolTypeSeed.rawValue), forKey: SE_PARAMS_KEY_PROTOCOL_TYPE_INT)
+			engine.setStringParam(credentials.resourceId, forKey: SE_PARAMS_KEY_RESOURCE_ID_STRING)
 			engine.setStringParam(uid, forKey: SE_PARAMS_KEY_UID_STRING)
 			engine.setStringParam("wss://openspeech.bytedance.com", forKey: SE_PARAMS_KEY_ASR_ADDRESS_STRING)
-			engine.setStringParam("/api/v2/asr", forKey: SE_PARAMS_KEY_ASR_URI_STRING)
+			engine.setStringParam("/api/v3/sauc/bigmodel", forKey: SE_PARAMS_KEY_ASR_URI_STRING)
 			engine.setStringParam(SE_RECORDER_TYPE_STREAM, forKey: SE_PARAMS_KEY_RECORDER_TYPE_STRING)
 			engine.setIntParam(Int(SEAsrScenarioStreaming.rawValue), forKey: SE_PARAMS_KEY_ASR_SCENARIO_INT)
 			engine.setStringParam(SE_ASR_RESULT_TYPE_FULL, forKey: SE_PARAMS_KEY_ASR_RESULT_TYPE_STRING)
@@ -68,10 +69,12 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 			engine.setIntParam(16_000, forKey: SE_PARAMS_KEY_CUSTOM_SAMPLE_RATE_INT)
 			engine.setIntParam(1, forKey: SE_PARAMS_KEY_CUSTOM_CHANNEL_INT)
 			engine.setStringParam(SE_LOG_LEVEL_WARN, forKey: SE_PARAMS_KEY_LOG_LEVEL_STRING)
-			if !hotWords.isEmpty, let json = Self.hotWordsJSON(hotWords) {
-				engine.setStringParam(json, forKey: SE_PARAMS_KEY_ASR_REQ_PARAMS_STRING)
+			let initCode = engine.initEngine()
+			NSLog("[ZG] ASR init code=\(initCode.rawValue)")
+			ok = initCode == SENoError
+			if ok, let json = Self.hotWordsJSON(hotWords) {
+				_ = engine.send(SEDirectiveUpdateAsrHotWords, data: json)
 			}
-			ok = engine.initEngine() == SENoError
 		}
 		return ok
 	}
@@ -81,7 +84,9 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 		syncOnQueue {
 			finishRequested = false
 			ready = false
-			ok = engine.send(SEDirectiveStartEngine) == SENoError
+			let startCode = engine.send(SEDirectiveStartEngine)
+			NSLog("[ZG] ASR start code=\(startCode.rawValue)")
+			ok = startCode == SENoError
 			running = ok
 		}
 		return ok
@@ -110,7 +115,7 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 	}
 
 	func abort() {
-		syncOnQueue { [weak self] in
+		queue.async { [weak self] in
 			guard let self else { return }
 			self.running = false
 			self.ready = false
@@ -120,11 +125,10 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 				self.created = false
 			}
 		}
-		emit(.done(VoiceResult(text: "", directStructured: false, incomplete: false)))
 	}
 
 	func close() {
-		syncOnQueue { [weak self] in
+		queue.async { [weak self] in
 			guard let self else { return }
 			self.running = false
 			self.ready = false
@@ -185,17 +189,10 @@ final class VolcAsrEngine: NSObject, SpeechEngineDelegate {
 	}
 
 	private static func hotWordsJSON(_ words: [String]) -> String? {
-		let hotwords = words.prefix(100).map { ["word": $0] }
-		let body: [String: Any] = [
-			"request": [
-				"corpus": [
-					"context": [
-						"context_type": "dialog_ctx",
-						"hotwords": hotwords,
-					],
-				],
-			],
-		]
+		let hotwords: [[String: Any]] = words.prefix(100).map {
+			["word": $0, "scale": 2.0]
+		}
+		let body: [String: Any] = ["hotwords": hotwords]
 		guard let data = try? JSONSerialization.data(withJSONObject: body) else { return nil }
 		return String(data: data, encoding: .utf8)
 	}

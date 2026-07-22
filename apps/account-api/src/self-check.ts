@@ -188,12 +188,12 @@ const { readVolcAsrConfig } = await import("./volc-asr.js");
 assert.equal(readVolcAsrConfig(), null);
 process.env.VOLC_ASR_APP_ID = "test-app";
 process.env.VOLC_ASR_TOKEN = "test-token";
-process.env.VOLC_ASR_CLUSTER = "volcengine_streaming_common";
+process.env.VOLC_ASR_RESOURCE_ID = "volc.bigasr.sauc.duration";
 const volc = readVolcAsrConfig();
 assert.ok(volc);
 assert.equal(volc?.appId, "test-app");
-assert.equal(volc?.token, "Bearer;test-token");
-assert.equal(volc?.cluster, "volcengine_streaming_common");
+assert.equal(volc?.token, "test-token");
+assert.equal(volc?.resourceId, "volc.bigasr.sauc.duration");
 assert.ok(volc?.expireAt);
 
 rmSync(dir, { recursive: true, force: true });

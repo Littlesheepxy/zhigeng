@@ -11,7 +11,10 @@ final class PictureInPictureSession: NSObject {
 	private var controller: AVPictureInPictureController?
 	private var hostView: UIView?
 	private var possibleObservation: NSKeyValueObservation?
+	private var activationObserver: NSObjectProtocol?
 	private var startDeadline: Timer?
+	private var startInFlight = false
+	private var startAttempts = 0
 	private(set) var isActive = false
 	var onStopped: (() -> Void)?
 	var onStarted: (() -> Void)?
@@ -54,23 +57,18 @@ final class PictureInPictureSession: NSObject {
 
 		player.play()
 		NSLog("[ZG] pip start: possible=\(controller?.isPictureInPicturePossible ?? false)")
-		// A blind delayed start fails silently on device; wait until PiP reports possible.
-		if controller?.isPictureInPicturePossible == true {
-			controller?.startPictureInPicture()
-		} else {
-			possibleObservation = controller?.observe(\.isPictureInPicturePossible, options: [.new]) { [weak self] _, change in
-				guard change.newValue == true else { return }
-				Task { @MainActor in
-					guard let self, !self.isActive else { return }
-					NSLog("[ZG] pip became possible, starting")
-					self.possibleObservation = nil
-					// The mic session reconfigure can pause the player; make sure it runs.
-					self.player?.play()
-					self.controller?.startPictureInPicture()
-				}
-			}
+		possibleObservation = controller?.observe(\.isPictureInPicturePossible, options: [.initial, .new]) { [weak self] _, change in
+			guard change.newValue == true else { return }
+			Task { @MainActor in self?.attemptStart() }
 		}
-		startDeadline = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { [weak self] _ in
+		activationObserver = NotificationCenter.default.addObserver(
+			forName: UIApplication.didBecomeActiveNotification,
+			object: nil,
+			queue: .main
+		) { [weak self] _ in
+			Task { @MainActor in self?.attemptStart() }
+		}
+		startDeadline = Timer.scheduledTimer(withTimeInterval: 6, repeats: false) { [weak self] _ in
 			Task { @MainActor in
 				guard let self, !self.isActive else { return }
 				let possible = self.controller?.isPictureInPicturePossible ?? false
@@ -81,10 +79,36 @@ final class PictureInPictureSession: NSObject {
 		}
 	}
 
+	private func attemptStart() {
+		guard !isActive, !startInFlight,
+		      controller?.isPictureInPicturePossible == true,
+		      UIApplication.shared.connectedScenes.contains(where: { $0.activationState == .foregroundActive })
+		else { return }
+		startInFlight = true
+		startAttempts += 1
+		player?.play()
+		NSLog("[ZG] pip starting attempt=\(startAttempts)")
+		// Let the app-switch transition finish after the keyboard opens us.
+		DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+			guard let self, !self.isActive else { return }
+			guard self.controller?.isPictureInPicturePossible == true else {
+				self.startInFlight = false
+				return
+			}
+			self.controller?.startPictureInPicture()
+		}
+	}
+
 	func stop() {
 		possibleObservation = nil
+		if let activationObserver {
+			NotificationCenter.default.removeObserver(activationObserver)
+			self.activationObserver = nil
+		}
 		startDeadline?.invalidate()
 		startDeadline = nil
+		startInFlight = false
+		startAttempts = 0
 		if controller?.isPictureInPictureActive == true {
 			controller?.stopPictureInPicture()
 		}
@@ -221,8 +245,14 @@ extension PictureInPictureSession: AVPictureInPictureControllerDelegate {
 	) {
 		Task { @MainActor in
 			self.isActive = true
+			self.startInFlight = false
 			self.startDeadline?.invalidate()
 			self.startDeadline = nil
+			self.possibleObservation = nil
+			if let activationObserver = self.activationObserver {
+				NotificationCenter.default.removeObserver(activationObserver)
+				self.activationObserver = nil
+			}
 			self.onStarted?()
 		}
 	}
@@ -233,7 +263,16 @@ extension PictureInPictureSession: AVPictureInPictureControllerDelegate {
 	) {
 		Task { @MainActor in
 			self.isActive = false
-			self.onFailed?(error.localizedDescription)
+			self.startInFlight = false
+			if self.startAttempts < 2 {
+				DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+					self?.attemptStart()
+				}
+			} else {
+				self.startDeadline?.invalidate()
+				self.startDeadline = nil
+				self.onFailed?(error.localizedDescription)
+			}
 		}
 	}
 

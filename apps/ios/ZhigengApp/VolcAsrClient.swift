@@ -13,7 +13,7 @@ final class VolcAsrClient: @unchecked Sendable {
 
 	private struct TokenResponse: Decodable {
 		let appId: String
-		let cluster: String
+		let resourceId: String
 		let token: String
 		let expireAt: String
 	}
@@ -54,7 +54,7 @@ final class VolcAsrClient: @unchecked Sendable {
 				guard engine.configure(
 					credentials: .init(
 						appId: credentials.appId,
-						cluster: credentials.cluster,
+						resourceId: credentials.resourceId,
 						token: credentials.token
 					),
 					hotWords: config.hotWords,

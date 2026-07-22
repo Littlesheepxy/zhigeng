@@ -1,6 +1,6 @@
 export type VolcAsrTokenPayload = {
 	appId: string;
-	cluster: string;
+	resourceId: string;
 	token: string;
 	expireAt: string;
 };
@@ -8,13 +8,13 @@ export type VolcAsrTokenPayload = {
 export function readVolcAsrConfig(): VolcAsrTokenPayload | null {
 	const appId = process.env.VOLC_ASR_APP_ID?.trim();
 	const rawToken = process.env.VOLC_ASR_TOKEN?.trim();
-	const cluster = process.env.VOLC_ASR_CLUSTER?.trim();
-	if (!appId || !rawToken || !cluster) return null;
-	// Volc SpeechEngine requires "Bearer;{token}" (semicolon, not space).
-	const token = rawToken.startsWith("Bearer;") ? rawToken : `Bearer;${rawToken}`;
+	const resourceId =
+		process.env.VOLC_ASR_RESOURCE_ID?.trim() || "volc.bigasr.sauc.duration";
+	if (!appId || !rawToken) return null;
+	const token = rawToken.startsWith("Bearer;") ? rawToken.slice("Bearer;".length) : rawToken;
 	return {
 		appId,
-		cluster,
+		resourceId,
 		token,
 		expireAt: new Date(Date.now() + 3_600_000).toISOString(),
 	};

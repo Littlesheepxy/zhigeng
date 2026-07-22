@@ -11,6 +11,7 @@ final class KeyboardViewController: UIInputViewController {
 	private var dictationPhase: KeyboardDictationPhase = .idle
 	private var sessionAlive = false
 	private var activeRequestId: String?
+	private var processingStartedAt: TimeInterval?
 	private var insertion = StreamingInsertionState()
 	private var lastAppliedRevision = 0
 	private var pollTimer: Timer?
@@ -125,14 +126,15 @@ final class KeyboardViewController: UIInputViewController {
 			return
 		}
 		guard attempt < 20 else {
-			hostResolutionFailed = true
 			os_log(
 				"%{public}@",
 				log: OSLog(subsystem: "app.zhigeng.ios.keyboard", category: "host"),
 				type: .fault,
-				"[ZG] keyboard host resolution timed out"
+				"[ZG] keyboard host resolution delayed; retrying"
 			)
-			rebuildHost()
+			DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+				self?.resolveHostBundleId(attempt: 0, generation: generation)
+			}
 			return
 		}
 		DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
@@ -182,6 +184,7 @@ final class KeyboardViewController: UIInputViewController {
 			dictationPhase = .listening
 		case .processing:
 			dictationPhase = .processing
+			processingStartedAt = Date().timeIntervalSince1970
 		case .idle:
 			dictationPhase = .listening
 			try? bridge.writeCommand(DictationCommand(kind: .start, requestId: requestId))
@@ -243,6 +246,7 @@ final class KeyboardViewController: UIInputViewController {
 
 		let request = DictationRequest()
 		activeRequestId = request.requestId
+		processingStartedAt = nil
 		insertion.reset()
 		lastAppliedRevision = 0
 		dictationPhase = .listening
@@ -261,6 +265,7 @@ final class KeyboardViewController: UIInputViewController {
 	private func stopDictation() {
 		guard let requestId = activeRequestId else { return }
 		dictationPhase = .processing
+		processingStartedAt = Date().timeIntervalSince1970
 		try? bridge.writeCommand(DictationCommand(kind: .stop, requestId: requestId))
 		rebuildHost()
 	}
@@ -280,6 +285,16 @@ final class KeyboardViewController: UIInputViewController {
 		}
 		guard let requestId = activeRequestId else {
 			consumeLegacyPendingResult()
+			return
+		}
+		if dictationPhase == .processing,
+		   let processingStartedAt,
+		   Date().timeIntervalSince1970 - processingStartedAt > 12
+		{
+			try? bridge.writeCommand(DictationCommand(kind: .cancel, requestId: requestId))
+			dictationPhase = .error
+			finishActiveRequest()
+			rebuildHost()
 			return
 		}
 		guard let result = try? bridge.readResultIfNewer(than: lastAppliedRevision),
@@ -348,6 +363,7 @@ final class KeyboardViewController: UIInputViewController {
 		UserDefaults(suiteName: AppGroupConstants.suiteName)?
 			.removeObject(forKey: "keyboard.pendingRequestId")
 		activeRequestId = nil
+		processingStartedAt = nil
 		insertion.reset()
 	}
 
@@ -864,41 +880,29 @@ struct KeyboardRootView: View {
 	}
 }
 
-/// Scrolling mic-level history, mirroring the desktop `VoiceWaveform`:
-/// every tick pushes the real level (written by the main app via App Group)
-/// into a ring buffer; bars scroll left and rise with the voice.
+/// Same nine-bar, symmetric real-level waveform used by the main app.
 private struct ListeningWaveform: View {
-	private static let barCount = 26
-	@State private var bars: [Double] = Array(repeating: 0, count: ListeningWaveform.barCount)
-	private let timer = Timer.publish(every: 0.095, on: .main, in: .common).autoconnect()
+	@State private var level = 0.0
+	private let timer = Timer.publish(every: 0.08, on: .main, in: .common).autoconnect()
 
 	var body: some View {
-		HStack(spacing: 2) {
-			ForEach(bars.indices, id: \.self) { index in
-				Capsule()
-					.frame(width: 2.5, height: max(3, bars[index] * 34))
-			}
-		}
-		.animation(.linear(duration: 0.07), value: bars)
-		.mask(
-			LinearGradient(
-				stops: [
-					.init(color: .clear, location: 0),
-					.init(color: .black, location: 0.16),
-					.init(color: .black, location: 0.84),
-					.init(color: .clear, location: 1),
-				],
-				startPoint: .leading,
-				endPoint: .trailing
+		TimelineView(.animation(minimumInterval: 0.05)) { timeline in
+			let heights = VoiceWaveformMath.barHeights(
+				level: level,
+				time: timeline.date.timeIntervalSinceReferenceDate
 			)
-		)
+			HStack(spacing: 2) {
+				ForEach(heights.indices, id: \.self) { index in
+					Capsule()
+						.frame(width: 3, height: heights[index])
+				}
+			}
+			.frame(height: 24)
+		}
 		.onReceive(timer) { _ in
-			let raw = UserDefaults(suiteName: AppGroupConstants.suiteName)?
-				.double(forKey: "dictation.level") ?? 0
-			let gated = raw < 0.035 ? 0 : raw
-			let value = min(1, max(0, pow(gated, 0.72)))
-			bars.removeFirst()
-			bars.append(value)
+			let defaults = UserDefaults(suiteName: AppGroupConstants.suiteName)
+			defaults?.synchronize()
+			level = defaults?.double(forKey: "dictation.level") ?? 0
 		}
 	}
 }

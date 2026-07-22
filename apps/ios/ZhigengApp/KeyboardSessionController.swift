@@ -215,6 +215,7 @@ final class KeyboardSessionController {
 		guard now - lastLevelWrite >= 0.08 else { return }
 		lastLevelWrite = now
 		levelDefaults?.set(level, forKey: "dictation.level")
+		levelDefaults?.synchronize()
 	}
 
 	private func resetLevel() {
