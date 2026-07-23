@@ -384,6 +384,7 @@ final class KeyboardSessionController {
 					requestId: requestId,
 					status: status,
 					text: result.text,
+					segments: result.segments,
 					directStructured: result.directStructured,
 					errorMessage: status == .error ? "没有听清，请再说一次" : nil,
 					revision: revision

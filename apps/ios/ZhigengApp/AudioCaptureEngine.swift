@@ -127,7 +127,13 @@ final class AudioCaptureEngine: ObservableObject {
 			var error: NSError?
 			// Safe: the converter consumes the block synchronously within this tap callback.
 			nonisolated(unsafe) let inputBuffer = buffer
+			nonisolated(unsafe) var inputConsumed = false
 			let inputBlock: AVAudioConverterInputBlock = { _, status in
+				guard !inputConsumed else {
+					status.pointee = .noDataNow
+					return nil
+				}
+				inputConsumed = true
 				status.pointee = .haveData
 				return inputBuffer
 			}

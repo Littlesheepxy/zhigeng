@@ -1,14 +1,62 @@
 import Foundation
 
+public struct VoiceWord: Codable, Equatable, Sendable {
+	public var text: String
+	public var startTimeMs: Int?
+	public var endTimeMs: Int?
+	public var confidence: Double?
+
+	public init(
+		text: String,
+		startTimeMs: Int? = nil,
+		endTimeMs: Int? = nil,
+		confidence: Double? = nil
+	) {
+		self.text = text
+		self.startTimeMs = startTimeMs
+		self.endTimeMs = endTimeMs
+		self.confidence = confidence
+	}
+}
+
+public struct VoiceSegment: Codable, Equatable, Sendable {
+	public var text: String
+	public var startTimeMs: Int?
+	public var endTimeMs: Int?
+	public var definite: Bool?
+	public var words: [VoiceWord]
+
+	public init(
+		text: String,
+		startTimeMs: Int? = nil,
+		endTimeMs: Int? = nil,
+		definite: Bool? = nil,
+		words: [VoiceWord] = []
+	) {
+		self.text = text
+		self.startTimeMs = startTimeMs
+		self.endTimeMs = endTimeMs
+		self.definite = definite
+		self.words = words
+	}
+}
+
 public struct VoiceResult: Equatable, Sendable {
 	public var text: String
 	public var directStructured: Bool
 	public var incomplete: Bool
+	public var segments: [VoiceSegment]
 
-	public init(text: String, directStructured: Bool = false, incomplete: Bool = false) {
+	public init(
+		text: String,
+		directStructured: Bool = false,
+		incomplete: Bool = false,
+		segments: [VoiceSegment] = []
+	) {
 		self.text = text
 		self.directStructured = directStructured
 		self.incomplete = incomplete
+		self.segments = segments
 	}
 
 	public var isInsertable: Bool {

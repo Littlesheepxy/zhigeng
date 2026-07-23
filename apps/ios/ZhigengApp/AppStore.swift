@@ -66,6 +66,7 @@ final class AppStore {
 	var sessionActiveUntil: TimeInterval?
 	var sessionMode: SessionMode = .pip
 	var sessionDuration: SessionDuration = .fifteen
+	var chineseKeyboardLayout: ChineseKeyboardLayout = .fullKeyboard
 	/// User has confirmed mode/duration at least once — toggle can start without sheet.
 	var sessionConfigured: Bool
 	var showSessionSheet = false
@@ -146,6 +147,11 @@ final class AppStore {
 		   let duration = SessionDuration(rawValue: durationRaw) {
 			self.sessionDuration = duration
 		}
+		if let raw = UserDefaults(suiteName: AppGroupConstants.suiteName)?
+			.string(forKey: AppGroupConstants.chineseKeyboardLayoutKey),
+		   let layout = ChineseKeyboardLayout(rawValue: raw) {
+			self.chineseKeyboardLayout = layout
+		}
 		reloadSharedState()
 		loadHistory()
 	}
@@ -154,6 +160,13 @@ final class AppStore {
 		let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
 		asrBaseURL = trimmed
 		defaults.set(trimmed, forKey: "asrBaseURL")
+	}
+
+	func setChineseKeyboardLayout(_ layout: ChineseKeyboardLayout) {
+		chineseKeyboardLayout = layout
+		let shared = UserDefaults(suiteName: AppGroupConstants.suiteName)
+		shared?.set(layout.rawValue, forKey: AppGroupConstants.chineseKeyboardLayoutKey)
+		shared?.synchronize()
 	}
 
 	var keyboardInstalled: Bool {

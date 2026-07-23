@@ -169,6 +169,7 @@ final class DictationSessionController {
 							requestId: pendingId,
 							status: .ready,
 							text: result.text,
+							segments: result.segments,
 							directStructured: result.directStructured
 						)
 					)

@@ -2,6 +2,7 @@ import Foundation
 
 public enum AppGroupConstants {
 	public static let suiteName = "group.app.zhigeng.ios"
+	public static let chineseKeyboardLayoutKey = "keyboard.chineseLayout"
 	public static let requestFileName = "dictation_request.json"
 	public static let resultFileName = "dictation_result.json"
 	public static let sessionFileName = "dictation_session.json"
@@ -11,6 +12,23 @@ public enum AppGroupConstants {
 	/// Darwin notification name for result ready (App Group + notify).
 	public static let resultReadyNotification = "app.zhigeng.ios.dictation.result"
 	public static let commandReadyNotification = "app.zhigeng.ios.dictation.command"
+}
+
+public enum VoiceDeletePlacement: Equatable, Sendable {
+	case topTrailing
+	case aboveSend
+}
+
+public enum ChineseKeyboardLayout: String, CaseIterable, Codable, Sendable {
+	case nineKey
+	case fullKeyboard
+
+	public var voiceDeletePlacement: VoiceDeletePlacement {
+		switch self {
+		case .nineKey: .topTrailing
+		case .fullKeyboard: .aboveSend
+		}
+	}
 }
 
 /// Heartbeat written by the keyboard extension; main app must not invent Full Access.
@@ -187,6 +205,7 @@ public struct DictationResult: Codable, Equatable, Sendable {
 	public var requestId: String
 	public var status: DictationStatus
 	public var text: String
+	public var segments: [VoiceSegment]
 	public var directStructured: Bool
 	public var ts: TimeInterval
 	public var errorMessage: String?
@@ -197,6 +216,7 @@ public struct DictationResult: Codable, Equatable, Sendable {
 		requestId: String,
 		status: DictationStatus,
 		text: String = "",
+		segments: [VoiceSegment] = [],
 		directStructured: Bool = false,
 		ts: TimeInterval = Date().timeIntervalSince1970,
 		errorMessage: String? = nil,
@@ -205,6 +225,7 @@ public struct DictationResult: Codable, Equatable, Sendable {
 		self.requestId = requestId
 		self.status = status
 		self.text = text
+		self.segments = segments
 		self.directStructured = directStructured
 		self.ts = ts
 		self.errorMessage = errorMessage
@@ -216,6 +237,7 @@ public struct DictationResult: Codable, Equatable, Sendable {
 		requestId = try container.decode(String.self, forKey: .requestId)
 		status = try container.decode(DictationStatus.self, forKey: .status)
 		text = try container.decode(String.self, forKey: .text)
+		segments = try container.decodeIfPresent([VoiceSegment].self, forKey: .segments) ?? []
 		directStructured = try container.decodeIfPresent(Bool.self, forKey: .directStructured) ?? false
 		ts = try container.decode(TimeInterval.self, forKey: .ts)
 		errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)

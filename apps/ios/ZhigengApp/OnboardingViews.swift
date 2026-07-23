@@ -527,6 +527,27 @@ struct KeyboardSetupView: View {
 						.foregroundStyle(.secondary)
 				}
 
+				VStack(alignment: .leading, spacing: 8) {
+					Text("你习惯哪种中文键盘？")
+						.font(.subheadline.weight(.semibold))
+					Picker(
+						"中文键盘布局",
+						selection: Binding(
+							get: { store.chineseKeyboardLayout },
+							set: { store.setChineseKeyboardLayout($0) }
+						)
+					) {
+						Text("九键").tag(ChineseKeyboardLayout.nineKey)
+						Text("全键盘").tag(ChineseKeyboardLayout.fullKeyboard)
+					}
+					.pickerStyle(.segmented)
+					Text("知更会按这个习惯安排语音页的删除键。")
+						.font(.caption)
+						.foregroundStyle(.secondary)
+				}
+				.padding(12)
+				.background(Brand.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
 				VStack(spacing: 10) {
 					timelineRow(
 						number: 1,

@@ -16,6 +16,11 @@ final class DictationProtocolTests: XCTestCase {
 		try? FileManager.default.removeItem(at: tempDir)
 	}
 
+	func testChineseLayoutControlsVoiceDeletePlacement() {
+		XCTAssertEqual(ChineseKeyboardLayout.nineKey.voiceDeletePlacement, .topTrailing)
+		XCTAssertEqual(ChineseKeyboardLayout.fullKeyboard.voiceDeletePlacement, .aboveSend)
+	}
+
 	func testCommandRoundTripAndConsumeOnce() throws {
 		let command = DictationCommand(kind: .start, requestId: "r1")
 		try bridge.writeCommand(command)
@@ -65,6 +70,79 @@ final class DictationProtocolTests: XCTestCase {
 		try bridge.writeResult(partial)
 		XCTAssertNil(try bridge.consumeInsertableResult(matching: "r1"))
 		XCTAssertEqual(try bridge.readResult()?.revision, 3)
+	}
+
+	func testFinalResultRoundTripsVoiceSegments() throws {
+		let word = VoiceWord(
+			text: "知更",
+			startTimeMs: 120,
+			endTimeMs: 480,
+			confidence: 0.92
+		)
+		let segment = VoiceSegment(
+			text: "知更。",
+			startTimeMs: 120,
+			endTimeMs: 520,
+			definite: true,
+			words: [word]
+		)
+		let result = DictationResult(
+			requestId: "r1",
+			status: .ready,
+			text: "知更。",
+			segments: [segment],
+			revision: 4
+		)
+
+		try bridge.writeResult(result)
+
+		XCTAssertEqual(try bridge.readResult()?.segments, [segment])
+	}
+
+	func testLegacyResultWithoutSegmentsDecodesWithEmptySegments() throws {
+		let json = """
+		{
+		  "requestId": "legacy",
+		  "status": "ready",
+		  "text": "旧结果",
+		  "directStructured": false,
+		  "ts": 1000,
+		  "revision": 1
+		}
+		"""
+
+		let result = try JSONDecoder().decode(DictationResult.self, from: Data(json.utf8))
+
+		XCTAssertEqual(result.segments, [])
+	}
+
+	func testVolcPayloadParserKeepsUtterancesAndWords() throws {
+		let payload = """
+		{
+		  "result": {
+		    "text": "喂，董老板。",
+		    "utterances": [{
+		      "definite": true,
+		      "start_time": 770,
+		      "end_time": 1930,
+		      "text": "喂，董老板。",
+		      "words": [{
+		        "text": "董",
+		        "start_time": 1530,
+		        "end_time": 1570,
+		        "confidence": 0.86
+		      }]
+		    }]
+		  }
+		}
+		"""
+
+		let result = try XCTUnwrap(VolcAsrPayloadParser.parse(payload))
+
+		XCTAssertEqual(result.text, "喂，董老板。")
+		XCTAssertEqual(result.segments.first?.definite, true)
+		XCTAssertEqual(result.segments.first?.words.first?.text, "董")
+		XCTAssertEqual(result.segments.first?.words.first?.confidence, 0.86)
 	}
 
 	func testConsumeNewerRevisionOnly() throws {
