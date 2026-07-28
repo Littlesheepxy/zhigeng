@@ -7,6 +7,7 @@ import os.log
 final class KeyboardViewController: UIInputViewController {
 	private var hostingController: UIHostingController<KeyboardRootView>?
 	private var keyboardHeightConstraint: NSLayoutConstraint?
+	private var preferredKeyboardHeight: CGFloat = KeyboardMode.baseHeight
 	private let bridge = AppGroupBridge()
 	private var linkStatus: KeyboardLinkStatus = .unknown
 	private var dictationPhase: KeyboardDictationPhase = .idle
@@ -133,11 +134,14 @@ final class KeyboardViewController: UIInputViewController {
 			},
 			onRedictate: { [weak self] in
 				self?.startRedictation()
+			},
+			onRequestHeight: { [weak self] height in
+				self?.setKeyboardHeight(height)
 			}
 		)
 		if let hostingController {
 			hostingController.rootView = root
-			keyboardHeightConstraint?.constant = 252
+			keyboardHeightConstraint?.constant = preferredKeyboardHeight
 			return
 		}
 		let host = UIHostingController(rootView: root)
@@ -151,12 +155,23 @@ final class KeyboardViewController: UIInputViewController {
 			host.view.topAnchor.constraint(equalTo: view.topAnchor),
 			host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 		])
-		let height = view.heightAnchor.constraint(equalToConstant: 252)
+		let height = view.heightAnchor.constraint(equalToConstant: preferredKeyboardHeight)
 		height.priority = .required
 		height.isActive = true
 		keyboardHeightConstraint = height
 		host.didMove(toParent: self)
 		hostingController = host
+	}
+
+	/// Pinyin is taller than voice; remembered so a later `rebuildHost` does not snap back.
+	private func setKeyboardHeight(_ height: CGFloat) {
+		guard preferredKeyboardHeight != height else { return }
+		preferredKeyboardHeight = height
+		guard let keyboardHeightConstraint else { return }
+		UIView.animate(withDuration: 0.18) {
+			keyboardHeightConstraint.constant = height
+			self.view.superview?.layoutIfNeeded()
+		}
 	}
 
 	private var returnKeyLabel: String {
@@ -818,6 +833,17 @@ enum KeyboardLinkStatus: Equatable {
 	}
 }
 
+/// One mapping of the 26MB table for the whole extension. It is memory mapped, so the
+/// resident cost is only the pages a lookup actually touches — which is what keeps this
+/// under the ~50MB a custom keyboard gets before it is killed.
+private enum PinyinTable {
+	static let shared: PinyinFileDictionary? = try? PinyinFileDictionary.bundled()
+
+	static func session() -> PinyinSession? {
+		shared.map { PinyinSession(dictionary: $0) }
+	}
+}
+
 enum KeyboardMode: String, CaseIterable, Identifiable {
 	case voice
 	case english
@@ -825,9 +851,18 @@ enum KeyboardMode: String, CaseIterable, Identifiable {
 
 	var id: String { rawValue }
 
-	var enabled: Bool {
-		self != .pinyin
-	}
+	/// One height for every plane in every state. The code line is reserved even when
+	/// empty rather than appearing with the first keystroke, because a keyboard that
+	/// grows mid-word shoves the host's text up under the user's eyes.
+	///
+	/// 6 top pad + 18 code line + 6 + 38 bar + 6 + (4 rows x 46 + 3 x 6) + 2 bottom pad.
+	/// Leaving slack here is what made the English keys render taller than the pinyin
+	/// ones: the planes fill the space, so any surplus stretches whichever rows are
+	/// flexible.
+	static let baseHeight: CGFloat = 278
+	static let codeLineHeight: CGFloat = 18
+	static let topRowHeight: CGFloat = 38
+	static let keyHeight: CGFloat = 46
 }
 
 enum KeyboardChrome {
@@ -881,16 +916,32 @@ struct KeyboardRootView: View {
 	var onChooseCorrection: (Int, String) -> Void
 	var onEditCorrection: () -> Void
 	var onRedictate: () -> Void
+	var onRequestHeight: (CGFloat) -> Void
 
 	@State private var mode: KeyboardMode = .voice
 	@State private var shifted = false
 	@State private var englishSymbols = false
+	@State private var pinyin = PinyinTable.session()
+	@State private var pinyinNineKey = false
+	@State private var deletePressActive = false
+	@State private var panelOpen = false
+	@State private var pasteboardPreview: String?
+	@State private var slideForward = true
+	@State private var trackpadActive = false
+	@State private var trackpadPoint: CGPoint?
 	@State private var trackpadDragAccum = CGSize.zero
+
+	private static let keyboardSpace = "zhigeng.keyboard"
 	@State private var correctionDragAccum = CGSize.zero
 
 	var body: some View {
 		VStack(spacing: 6) {
-			topBar
+			pinyinCodeLine
+			if isComposing {
+				pinyinCandidateBar
+			} else {
+				topBar
+			}
 			if linkStatus != .connected {
 				Text(linkStatus.banner)
 					.font(.caption2)
@@ -916,16 +967,43 @@ struct KeyboardRootView: View {
 				case .english:
 					englishPlane
 				case .pinyin:
-					pinyinPlaceholder
+					pinyinPlane
 				}
 			}
 			.frame(maxWidth: .infinity, maxHeight: .infinity)
+			// A plain `switch` swaps the planes in place; the id is what makes SwiftUI
+			// treat it as one view leaving and another arriving, which the transition needs.
+			.id(mode)
+			.transition(
+				.asymmetric(
+					insertion: .move(edge: slideForward ? .trailing : .leading),
+					removal: .move(edge: slideForward ? .leading : .trailing)
+				)
+			)
+			.clipped()
+		}
+		.overlay(alignment: .top) {
+			// Below the bar, so the mark that opened it stays visible and tappable.
+			if panelOpen { logoPanel.padding(.top, 40) }
+		}
+		.onAppear { onRequestHeight(desiredHeight) }
+		.onChange(of: mode) { _, _ in
+			// Letters half-typed in one mode mean nothing in the next.
+			pinyin?.clear()
+			panelOpen = false
+			onRequestHeight(desiredHeight)
 		}
 		.padding(.horizontal, 12)
 		.padding(.top, 6)
 		.padding(.bottom, 2)
 		.background(KeyboardChrome.background)
 		.ignoresSafeArea(.container, edges: .bottom)
+		// Outside the padding so blanking covers the whole keyboard rather than looking
+		// like a panel floating on the gradient; the drag reports into this same space.
+		.coordinateSpace(name: Self.keyboardSpace)
+		.overlay {
+			if trackpadActive { trackpadSurface }
+		}
 		.gesture(
 			DragGesture(minimumDistance: 40)
 				.onEnded { value in
@@ -936,37 +1014,137 @@ struct KeyboardRootView: View {
 		)
 	}
 
+	private var isComposing: Bool {
+		mode == .pinyin && pinyin?.isComposing == true
+	}
+
+	private var desiredHeight: CGFloat { KeyboardMode.baseHeight }
+
 	private var topBar: some View {
 		HStack(spacing: 10) {
 			logoMark
 			Spacer(minLength: 8)
 			modeSwitcher
 		}
+		.frame(height: KeyboardMode.topRowHeight)
 	}
 
 	private var logoMark: some View {
-		Group {
-			if let uiImage = UIImage(named: "robin") {
-				Image(uiImage: uiImage)
-					.resizable()
-					.scaledToFit()
-			} else {
-				Image(systemName: "bird.fill")
-					.font(.system(size: 16, weight: .semibold))
-					.foregroundStyle(Color(red: 0.404, green: 0.361, blue: 0.945))
+		Button {
+			if !panelOpen { pasteboardPreview = readPasteboard() }
+			withAnimation(.easeOut(duration: 0.16)) { panelOpen.toggle() }
+		} label: {
+			HStack(spacing: 2) {
+				Group {
+					if let uiImage = UIImage(named: "robin") {
+						Image(uiImage: uiImage)
+							.resizable()
+							.scaledToFit()
+					} else {
+						Image(systemName: "bird.fill")
+							.font(.system(size: 16, weight: .semibold))
+							.foregroundStyle(Color(red: 0.404, green: 0.361, blue: 0.945))
+					}
+				}
+				.frame(width: 34, height: 34)
+				.clipShape(Circle())
+				Image(systemName: "chevron.down")
+					.font(.system(size: 9, weight: .semibold))
+					.foregroundStyle(.secondary)
+					.rotationEffect(.degrees(panelOpen ? 180 : 0))
 			}
 		}
-		.frame(width: 34, height: 34)
-		.clipShape(Circle())
-		.accessibilityLabel("知更")
+		.buttonStyle(.plain)
+		.accessibilityLabel(panelOpen ? "收起知更工具" : "知更工具")
+	}
+
+	/// Low-frequency entries live behind the mark so the default surface stays keys only.
+	private var logoPanel: some View {
+		VStack(spacing: 10) {
+			HStack(spacing: 8) {
+				panelTile(
+					icon: "doc.on.clipboard",
+					title: pasteboardPreview.map { $0.count > 8 ? String($0.prefix(8)) + "…" : $0 } ?? "剪贴板为空",
+					enabled: pasteboardPreview != nil
+				) {
+					guard let text = pasteboardPreview else { return }
+					onInsert(text)
+					closePanel()
+				}
+				Link(destination: URL(string: "zhigeng://settings")!) {
+					panelTileLabel(icon: "gearshape", title: "知更设置", enabled: true)
+				}
+				.buttonStyle(.plain)
+				.simultaneousGesture(TapGesture().onEnded { closePanel() })
+			}
+			Button {
+				closePanel()
+			} label: {
+				Image(systemName: "chevron.up")
+					.font(.system(size: 11, weight: .semibold))
+					.foregroundStyle(.secondary)
+					.frame(maxWidth: .infinity, minHeight: 24)
+			}
+			.buttonStyle(.plain)
+			.accessibilityLabel("收起")
+		}
+		.padding(12)
+		.background(
+			Color(uiColor: .systemBackground).opacity(0.98),
+			in: RoundedRectangle(cornerRadius: 14)
+		)
+		.shadow(color: .black.opacity(0.14), radius: 10, y: 4)
+		.transition(.move(edge: .top).combined(with: .opacity))
+	}
+
+	private func panelTile(
+		icon: String,
+		title: String,
+		enabled: Bool,
+		action: @escaping () -> Void
+	) -> some View {
+		Button(action: action) {
+			panelTileLabel(icon: icon, title: title, enabled: enabled)
+		}
+		.buttonStyle(.plain)
+		.disabled(!enabled)
+	}
+
+	private func panelTileLabel(icon: String, title: String, enabled: Bool) -> some View {
+		VStack(spacing: 6) {
+			Image(systemName: icon)
+				.font(.system(size: 19, weight: .regular))
+			Text(title)
+				.font(.caption2)
+				.lineLimit(1)
+				.minimumScaleFactor(0.7)
+		}
+		.foregroundStyle(enabled ? Color.primary : Color.secondary)
+		.frame(maxWidth: .infinity, minHeight: 62)
+		.background(Color(uiColor: .systemGray6), in: RoundedRectangle(cornerRadius: 10))
+		.opacity(enabled ? 1 : 0.5)
+	}
+
+	private func closePanel() {
+		withAnimation(.easeOut(duration: 0.16)) { panelOpen = false }
+	}
+
+	/// Read on open only — a keyboard that polls the pasteboard is a keyboard that spies.
+	private func readPasteboard() -> String? {
+		guard linkStatus == .connected, UIPasteboard.general.hasStrings else { return nil }
+		let text = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines)
+		return (text?.isEmpty == false) ? text : nil
 	}
 
 	private var modeSwitcher: some View {
 		HStack(spacing: 2) {
 			ForEach(KeyboardMode.allCases) { item in
 				Button {
-					guard item.enabled else { return }
-					withAnimation(.easeOut(duration: 0.15)) { mode = item }
+					let all = KeyboardMode.allCases
+					guard let from = all.firstIndex(of: mode),
+					      let to = all.firstIndex(of: item)
+					else { return }
+					select(item, forward: to > from)
 				} label: {
 					Group {
 						if item == .voice {
@@ -980,11 +1158,7 @@ struct KeyboardRootView: View {
 								.font(.caption.weight(mode == item ? .semibold : .medium))
 						}
 					}
-					.foregroundStyle(
-						item.enabled
-							? (mode == item ? Color.primary : Color.secondary)
-							: Color.secondary.opacity(0.4)
-					)
+					.foregroundStyle(mode == item ? Color.primary : Color.secondary)
 					.frame(width: 34, height: 28)
 					.background(
 						mode == item ? Color(uiColor: .systemBackground).opacity(0.92) : .clear,
@@ -992,7 +1166,6 @@ struct KeyboardRootView: View {
 					)
 				}
 				.buttonStyle(.plain)
-				.disabled(!item.enabled)
 				.accessibilityLabel(item == .voice ? "语音" : item == .english ? "英文" : "拼音")
 			}
 		}
@@ -1225,15 +1398,294 @@ struct KeyboardRootView: View {
 		}
 	}
 
-	private var pinyinPlaceholder: some View {
-		VStack {
-			Spacer()
-			Text("拼音键盘即将接入")
-				.font(.subheadline)
-				.foregroundStyle(.secondary)
-			Spacer()
-			editToolbar
+	// MARK: - Pinyin
+
+	private var pinyinPlane: some View {
+		VStack(spacing: 6) {
+			if pinyinNineKey {
+				pinyinNineKeyGrid
+			} else {
+				pinyinFullKeys
+			}
+			pinyinBottomRow
 		}
+	}
+
+	/// How the keys were read, above the candidates rather than beside them — the split
+	/// is what tells the user why they got the wrong word. Tapping it gives up on the
+	/// table and sends the raw letters, which is the only escape hatch for a word it
+	/// does not know.
+	private var pinyinCodeLine: some View {
+		HStack(spacing: 0) {
+			if isComposing {
+				Button {
+					guard let session = pinyin else { return }
+					onInsert(session.typed.replacingOccurrences(of: "'", with: ""))
+					pinyin?.clear()
+				} label: {
+					Text(pinyin?.display ?? "")
+						.font(.footnote)
+						.foregroundStyle(.secondary)
+						.lineLimit(1)
+				}
+				.buttonStyle(.plain)
+				.accessibilityHint("点击直接上屏这些字母")
+			}
+			Spacer(minLength: 0)
+		}
+		.frame(height: KeyboardMode.codeLineHeight)
+	}
+
+	private var pinyinCandidateBar: some View {
+		let candidates = pinyin?.candidates(limit: 20) ?? []
+		return HStack(spacing: 6) {
+			ScrollView(.horizontal, showsIndicators: false) {
+				HStack(spacing: 2) {
+					// Offsets, not text: two candidates can render the same string.
+					ForEach(Array(candidates.enumerated()), id: \.offset) { index, candidate in
+						Button {
+							pinyinCommit(candidate)
+						} 						label: {
+							Text(candidate.text)
+								.font(.system(size: 21))
+								.foregroundStyle(index == 0 ? Color.accentColor : Color.primary)
+								.padding(.horizontal, 10)
+								.frame(height: KeyboardMode.topRowHeight)
+						}
+						.buttonStyle(.plain)
+					}
+				}
+			}
+			if !candidates.isEmpty {
+				Image(systemName: "chevron.down")
+					.font(.system(size: 11, weight: .semibold))
+					.foregroundStyle(.secondary)
+					.frame(width: 24, height: KeyboardMode.topRowHeight)
+			}
+		}
+		.frame(height: KeyboardMode.topRowHeight)
+	}
+
+	private var pinyinFullKeys: some View {
+		VStack(spacing: 6) {
+			pinyinKeyRow(
+				["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+				alternates: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
+			)
+			pinyinKeyRow(["a", "s", "d", "f", "g", "h", "j", "k", "l"])
+			HStack(spacing: 6) {
+				compactTextKey("分词") { pinyin?.append("'") }
+				pinyinKeyRow(["z", "x", "c", "v", "b", "n", "m"])
+				holdDeleteKey
+			}
+		}
+	}
+
+	/// Letters are the label and the digit is the corner hint, because nine-key users
+	/// hunt for the letter. The slot where 1 would sit is the syllable separator, which
+	/// is where every Chinese nine-key puts it.
+	private var pinyinNineKeyGrid: some View {
+		let rows: [[(String, String)]] = [
+			[("'", "分词"), ("2", "ABC"), ("3", "DEF")],
+			[("4", "GHI"), ("5", "JKL"), ("6", "MNO")],
+			[("7", "PQRS"), ("8", "TUV"), ("9", "WXYZ")],
+		]
+		return HStack(spacing: 6) {
+			pinyinPunctuationColumn
+			VStack(spacing: 6) {
+				ForEach(rows.indices, id: \.self) { index in
+					HStack(spacing: 6) {
+						ForEach(rows[index], id: \.0) { digit, letters in
+							Button {
+								pinyin?.append(Character(digit))
+							} label: {
+								ZStack(alignment: .topTrailing) {
+									Text(letters)
+										.font(.system(size: digit == "'" ? 15 : 17, weight: .regular))
+										.frame(maxWidth: .infinity, maxHeight: .infinity)
+									if digit != "'" {
+										Text(digit)
+											.font(.system(size: 10))
+											.foregroundStyle(.secondary)
+											.padding(.top, 4)
+											.padding(.trailing, 6)
+									}
+								}
+								.frame(maxWidth: .infinity, minHeight: KeyboardMode.keyHeight)
+								.background(
+									Color(uiColor: .systemBackground).opacity(0.94),
+									in: RoundedRectangle(cornerRadius: 8)
+								)
+							}
+							.buttonStyle(.plain)
+							.accessibilityLabel(digit == "'" ? "分词" : letters)
+						}
+					}
+				}
+			}
+			pinyinSideColumn
+		}
+		.frame(height: KeyboardMode.keyHeight * 3 + 12)
+	}
+
+	/// Four marks in the height of three rows, so punctuation never moves — including
+	/// mid-composition, where it commits the top candidate first.
+	private var pinyinPunctuationColumn: some View {
+		VStack(spacing: 4) {
+			ForEach(["，", "。", "？", "！"], id: \.self) { mark in
+				Button {
+					pinyinPunctuate(mark)
+				} label: {
+					Text(mark)
+						.font(.system(size: 15))
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+						.background(
+							Color(uiColor: .systemGray3).opacity(0.55),
+							in: RoundedRectangle(cornerRadius: 7)
+						)
+				}
+				.buttonStyle(.plain)
+			}
+		}
+		.frame(width: 40)
+	}
+
+	/// Delete over a double-height newline. Composing turns the newline into a way out
+	/// of a buffer gone wrong, which is the only thing anyone needs there mid-word.
+	private var pinyinSideColumn: some View {
+		VStack(spacing: 6) {
+			squareDeleteKey
+			Button {
+				if pinyin?.isComposing == true {
+					pinyin?.clear()
+				} else {
+					onInsert("\n")
+				}
+			} label: {
+				Text(pinyin?.isComposing == true ? "重输" : "换行")
+					.font(.system(size: 15))
+					.frame(width: 48, height: KeyboardMode.keyHeight * 2 + 6)
+					.background(
+						Color(uiColor: .systemGray3).opacity(0.7),
+						in: RoundedRectangle(cornerRadius: 8)
+					)
+			}
+			.buttonStyle(.plain)
+		}
+		.frame(width: 48)
+	}
+
+	/// Same five slots as the English plane, so switching modes does not move the space
+	/// bar under the user's thumb. The layout toggle takes the slot `123` holds there.
+	private var pinyinBottomRow: some View {
+		HStack(spacing: 6) {
+			compactTextKey(pinyinNineKey ? "全键" : "九键") {
+				pinyinNineKey.toggle()
+				pinyin?.nineKey = pinyinNineKey
+			}
+			if !pinyinNineKey {
+				compactTextKey("，") { pinyinPunctuate("，") }
+			}
+			pinyinSpaceKey
+			if !pinyinNineKey {
+				compactTextKey("。") { pinyinPunctuate("。") }
+			}
+			textActionKey(pinyinReturnLabel) { pinyinReturn() }
+		}
+	}
+
+	/// Space commits the top candidate while composing — the single most used key in
+	/// Chinese input — and falls back to the trackpad space everywhere else.
+	private var pinyinSpaceKey: some View {
+		Group {
+			if pinyin?.isComposing == true {
+				Button {
+					pinyinCommitTop()
+				} label: {
+					Text("空格")
+						.font(.subheadline.weight(.medium))
+						.frame(maxWidth: .infinity, minHeight: KeyboardMode.keyHeight)
+						.background(
+							Color(uiColor: .systemBackground).opacity(0.94),
+							in: RoundedRectangle(cornerRadius: 8)
+						)
+				}
+				.buttonStyle(.plain)
+			} else {
+				trackpadSpace
+			}
+		}
+	}
+
+	private var pinyinReturnLabel: String {
+		pinyin?.isComposing == true ? "确定" : returnKeyLabel
+	}
+
+	// MARK: - Pinyin actions
+
+	/// `alternates` are the corner hints reachable by long press, so a digit mid-sentence
+	/// does not cost a trip through another plane.
+	private func pinyinKeyRow(_ keys: [String], alternates: [String] = []) -> some View {
+		HStack(spacing: 6) {
+			ForEach(Array(keys.enumerated()), id: \.element) { index, key in
+				let alternate = index < alternates.count ? alternates[index] : nil
+				ZStack(alignment: .topTrailing) {
+					Text(key)
+						.font(.body.weight(.medium))
+						.frame(maxWidth: .infinity, maxHeight: .infinity)
+					if let alternate {
+						Text(alternate)
+							.font(.system(size: 9))
+							.foregroundStyle(.secondary)
+							.padding(.top, 3)
+							.padding(.trailing, 5)
+					}
+				}
+				.frame(maxWidth: .infinity, minHeight: KeyboardMode.keyHeight)
+				.background(
+					Color(uiColor: .systemBackground).opacity(0.94),
+					in: RoundedRectangle(cornerRadius: 8)
+				)
+				.contentShape(RoundedRectangle(cornerRadius: 8))
+				.onLongPressGesture(minimumDuration: 0.3) {
+					guard let alternate else { return }
+					pinyinCommitTop()
+					onInsert(alternate)
+				}
+				.onTapGesture { pinyin?.append(Character(key)) }
+			}
+		}
+	}
+
+	private func pinyinCommit(_ candidate: PinyinCandidate) {
+		guard let text = pinyin?.commit(candidate) else { return }
+		onInsert(text)
+	}
+
+	@discardableResult
+	private func pinyinCommitTop() -> Bool {
+		guard let session = pinyin, session.isComposing,
+		      let top = session.candidates(limit: 1).first
+		else { return false }
+		pinyinCommit(top)
+		return true
+	}
+
+	/// Mid-word the return action would send a half-finished message, so it takes the
+	/// top candidate instead; the raw letters are on the code line.
+	private func pinyinReturn() {
+		if pinyinCommitTop() { return }
+		onInsert("\n")
+	}
+
+	private func pinyinPunctuate(_ mark: String) {
+		pinyinCommitTop()
+		onInsert(mark)
+	}
+
+	/// `true` when the buffer absorbed the delete, so the document is left alone.
+	private func pinyinBackspace() -> Bool {
+		pinyin?.backspace() ?? false
 	}
 
 	/// Number/symbol entry + punctuation + trackpad space + send.
@@ -1252,22 +1704,25 @@ struct KeyboardRootView: View {
 	private var trackpadSpace: some View {
 		Text("空格")
 			.font(.subheadline.weight(.medium))
-			.frame(maxWidth: .infinity, minHeight: 42)
+			.frame(maxWidth: .infinity, minHeight: KeyboardMode.keyHeight)
+			// Flat like every other key. The gradient that used to hint "this one drags"
+			// only read as a shadow; the trackpad blanking carries that hint now.
 			.background(
-				LinearGradient(
-					colors: [
-						Color(uiColor: .systemBackground).opacity(0.98),
-						Color(uiColor: .systemGray5).opacity(0.9),
-					],
-					startPoint: .top,
-					endPoint: .bottom
-				),
+				Color(uiColor: .systemBackground).opacity(0.94),
 				in: RoundedRectangle(cornerRadius: 8)
 			)
 			.contentShape(RoundedRectangle(cornerRadius: 8))
 			.gesture(
-				DragGesture(minimumDistance: 0)
+				DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.keyboardSpace))
 					.onChanged { value in
+						trackpadPoint = value.location
+						// The keys stay put until the finger has clearly left the key, so
+						// an ordinary space tap never flashes the trackpad.
+						if !trackpadActive,
+						   hypot(value.translation.width, value.translation.height) > 10
+						{
+							withAnimation(.easeOut(duration: 0.12)) { trackpadActive = true }
+						}
 						let horizontalDelta = value.translation.width - trackpadDragAccum.width
 						let verticalDelta = value.translation.height - trackpadDragAccum.height
 						let horizontalStep: CGFloat = 14
@@ -1287,13 +1742,45 @@ struct KeyboardRootView: View {
 						}
 					}
 					.onEnded { value in
-						defer { trackpadDragAccum = .zero }
-						if hypot(value.translation.width, value.translation.height) < 8 {
+						defer {
+							trackpadDragAccum = .zero
+							trackpadPoint = nil
+							withAnimation(.easeOut(duration: 0.14)) { trackpadActive = false }
+						}
+						if !trackpadActive,
+						   hypot(value.translation.width, value.translation.height) < 8
+						{
 							onInsert(" ")
 						}
 					}
 			)
+			.simultaneousGesture(
+				// Hold without moving also arms it, the way the system space bar does.
+				LongPressGesture(minimumDuration: 0.3).onEnded { _ in
+					withAnimation(.easeOut(duration: 0.12)) { trackpadActive = true }
+				}
+			)
 			.accessibilityLabel("空格，拖动移动光标")
+	}
+
+	/// The keys blank out into a bare surface while the space bar is steering the cursor,
+	/// so the finger is not hunting for feedback among keys it cannot press anyway.
+	private var trackpadSurface: some View {
+		ZStack(alignment: .topLeading) {
+			Color(uiColor: KeyboardChrome.topGray)
+			if let point = trackpadPoint {
+				Rectangle()
+					.fill(Color.primary.opacity(0.12))
+					.frame(height: 1)
+					.offset(y: point.y)
+				Capsule()
+					.fill(Color.accentColor.opacity(0.75))
+					.frame(width: 3, height: 24)
+					.offset(x: point.x - 1.5, y: point.y - 12)
+			}
+		}
+		.allowsHitTesting(false)
+		.transition(.opacity)
 	}
 
 	private var correctionTrackpadGesture: some Gesture {
@@ -1322,16 +1809,38 @@ struct KeyboardRootView: View {
 			}
 	}
 
-	private var holdDeleteKey: some View {
-		Image(systemName: "delete.left")
+	/// Circular in the voice dock, where it floats; square in the key grids, where a
+	/// circle next to rounded-rect keys is the thing that reads as unfinished.
+	private var holdDeleteKey: some View { deleteKey(circular: true, height: 44) }
+
+	/// The nine-key grid is the one place a circle would break the column it sits in.
+	private var squareDeleteKey: some View { deleteKey(circular: false, height: KeyboardMode.keyHeight) }
+
+	private func deleteKey(circular: Bool, height: CGFloat) -> some View {
+		let shape: AnyShape = circular
+			? AnyShape(Circle())
+			: AnyShape(RoundedRectangle(cornerRadius: 8))
+		return Image(systemName: "delete.left")
 			.font(.body.weight(.semibold))
-			.frame(width: 44, height: 44)
-			.background(Color(uiColor: .systemGray3).opacity(0.55), in: Circle())
-			.contentShape(Circle())
+			.frame(width: circular ? 44 : 48, height: height)
+			.background(Color(uiColor: .systemGray3).opacity(circular ? 0.55 : 0.7), in: shape)
+			.contentShape(shape)
 			.gesture(
 				DragGesture(minimumDistance: 0)
-					.onChanged { _ in onDeleteHoldChanged(true) }
-					.onEnded { _ in onDeleteHoldChanged(false) }
+					.onChanged { _ in
+						// onChanged also fires for finger travel; one press is one delete.
+						guard !deletePressActive else { return }
+						deletePressActive = true
+						// ponytail: while composing, one letter per press instead of the
+						// repeat timer — a repeat that outlives the buffer would start
+						// eating committed text. Upgrade path is a buffer-aware timer.
+						if mode == .pinyin, pinyinBackspace() { return }
+						onDeleteHoldChanged(true)
+					}
+					.onEnded { _ in
+						deletePressActive = false
+						onDeleteHoldChanged(false)
+					}
 			)
 			.accessibilityLabel("删除")
 	}
@@ -1342,7 +1851,7 @@ struct KeyboardRootView: View {
 		} label: {
 			Image(systemName: shifted ? "shift.fill" : "shift")
 				.font(.body.weight(.semibold))
-				.frame(width: 42, height: 42)
+				.frame(width: 42, height: KeyboardMode.keyHeight)
 				.background(Color(uiColor: .systemGray3).opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
 		}
 		.buttonStyle(.plain)
@@ -1364,7 +1873,7 @@ struct KeyboardRootView: View {
 				} label: {
 					Text(display)
 						.font(.body.weight(.medium))
-						.frame(maxWidth: .infinity, minHeight: 42)
+						.frame(maxWidth: .infinity, minHeight: KeyboardMode.keyHeight)
 						.background(Color(uiColor: .systemBackground).opacity(0.94), in: RoundedRectangle(cornerRadius: 8))
 				}
 				.buttonStyle(.plain)
@@ -1376,7 +1885,7 @@ struct KeyboardRootView: View {
 		Button(action: action) {
 			Image(systemName: systemImage)
 				.font(.body.weight(.semibold))
-				.frame(width: 42, height: 42)
+				.frame(width: 42, height: KeyboardMode.keyHeight)
 				.background(Color(uiColor: .systemGray3).opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
 		}
 		.buttonStyle(.plain)
@@ -1386,7 +1895,7 @@ struct KeyboardRootView: View {
 		Button(action: action) {
 			Text(title)
 				.font(.subheadline.weight(.medium))
-				.frame(width: 42, height: 42)
+				.frame(width: 42, height: KeyboardMode.keyHeight)
 				.background(Color(uiColor: .systemGray3).opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
 		}
 		.buttonStyle(.plain)
@@ -1396,7 +1905,7 @@ struct KeyboardRootView: View {
 		Button(action: action) {
 			Text(title)
 				.font(.subheadline.weight(.medium))
-				.frame(minWidth: 64, minHeight: 42)
+				.frame(minWidth: 64, minHeight: KeyboardMode.keyHeight)
 				.background(Color(uiColor: .systemGray3).opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
 		}
 		.buttonStyle(.plain)
@@ -1417,12 +1926,20 @@ struct KeyboardRootView: View {
 	}
 
 	private func cycleMode(forward: Bool) {
-		let enabled = KeyboardMode.allCases.filter(\.enabled)
-		guard let idx = enabled.firstIndex(of: mode) else { return }
-		let next = forward
-			? enabled[(idx + 1) % enabled.count]
-			: enabled[(idx - 1 + enabled.count) % enabled.count]
-		withAnimation(.easeOut(duration: 0.15)) { mode = next }
+		let all = KeyboardMode.allCases
+		guard let idx = all.firstIndex(of: mode) else { return }
+		select(
+			forward ? all[(idx + 1) % all.count] : all[(idx - 1 + all.count) % all.count],
+			forward: forward
+		)
+	}
+
+	/// The plane slides in from the side it lives on, so a swipe and a tap on the
+	/// switcher read as the same movement through the same three surfaces.
+	private func select(_ next: KeyboardMode, forward: Bool) {
+		guard next != mode else { return }
+		slideForward = forward
+		withAnimation(.easeOut(duration: 0.22)) { mode = next }
 	}
 }
 
