@@ -59,6 +59,13 @@ struct MeView: View {
 								supportRow(icon: "questionmark.circle", title: "帮助与引导")
 						}
 						.buttonStyle(.plain)
+							Divider().padding(.leading, 50)
+						NavigationLink {
+							OpenSourceNoticesView()
+						} label: {
+								supportRow(icon: "doc.text", title: "开源声明")
+						}
+						.buttonStyle(.plain)
 						}
 						.background(Brand.surface)
 						.clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -251,6 +258,52 @@ struct PrivacyFullAccessView: View {
 			}
 		}
 		.navigationTitle("隐私与数据")
+	}
+}
+
+/// CC-BY 4.0 requires attribution wherever the work ships, so this page is a release
+/// condition rather than a nicety: without it the pinyin dictionary cannot be shipped.
+struct OpenSourceNoticesView: View {
+	var body: some View {
+		List {
+			Section("拼音词库") {
+				VStack(alignment: .leading, spacing: 6) {
+					Text("万象拼音词库（RIME-LMDG）")
+						.font(.subheadline.weight(.semibold))
+					Text("© amzxyz，依据 CC BY 4.0 授权使用。知更取其字表与基础词表，去声调后重排为二进制查询表，未改动词条本身。")
+						.font(.caption)
+						.foregroundStyle(.secondary)
+					Link(
+						"github.com/amzxyz/RIME-LMDG",
+						destination: URL(string: "https://github.com/amzxyz/RIME-LMDG")!
+					)
+					.font(.caption)
+					Link(
+						"creativecommons.org/licenses/by/4.0",
+						destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!
+					)
+					.font(.caption)
+				}
+				.padding(.vertical, 2)
+			}
+
+			Section("其他") {
+				VStack(alignment: .leading, spacing: 6) {
+					Text("KeyboardHostBundleID")
+						.font(.subheadline.weight(.semibold))
+					Text("MIT 授权。用于在键盘扩展里识别宿主 App，听写完成后能自动跳回原来的应用。")
+						.font(.caption)
+						.foregroundStyle(.secondary)
+					Link(
+						"github.com/Muskupecli/KeyboardHostBundleID",
+						destination: URL(string: "https://github.com/Muskupecli/KeyboardHostBundleID")!
+					)
+					.font(.caption)
+				}
+				.padding(.vertical, 2)
+			}
+		}
+		.navigationTitle("开源声明")
 	}
 }
 

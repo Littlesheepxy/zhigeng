@@ -17,9 +17,9 @@
 | 语音卖点 | 轻声输入（真机验收后主宣）、去口头词、场景整理；结果页只显示真实发生的处理标签 |
 | 技术栈 | **原生 Swift/SwiftUI**，不用 HBuilder/uni-app/RN；最低 **iOS 17** |
 | 代码位置 | **Fold One monorepo 里新建 `apps/ios`** |
-| 键盘页 | Voice + 26 键拼音（librime）+ Symbols 横滑；不绑 KeyboardKit |
-| 开源策略 | Hamster / azooKey **只作样板**；中文底座 **BSD librime**；语音桥参考 Wave/Dictus（MIT） |
-| 产品特色 | 语音与拼音共用 `PersonalLexicon`：修正一次 → Rime 加权 + ASR hotWords |
+| 键盘页 | Voice + 拼音（**自研 Swift 引擎**，26 键 / 九键两套布局）+ Symbols；不绑 KeyboardKit |
+| 开源策略 | Hamster / azooKey **只作样板**；中文底座 **自研 Swift**（词库取万象 RIME-LMDG，CC-BY 4.0）；语音桥参考 Wave/Dictus（MIT） |
+| 产品特色 | 语音与拼音共用 `PersonalLexicon`：修正一次 → 拼音候选加权 + ASR hotWords |
 | v1 ASR | **iOS 主 App：火山 `SpeechEngineAsrToB`（豆包）**，凭证由 `account-api` `/asr/volc-token` 下发；PC 仍走 `apps/asr-proxy` / Fun-ASR |
 | 净化/热词 | 服务端 structure + vocabulary；客户端维护个人词并随 `start.hotWords` 上传 |
 | 免切换 | PiP 主实验 + Live Activity 状态入口；不达标则回退显式切主 App |
@@ -61,7 +61,23 @@ supa-man（`~/Desktop/supa-man/apps/mobile`）是 uni-app + HBuilder 离线 SDK�
 - Core 包：`AppGroupBridge` + `PersonalLexicon`（`swift test` 可跑，不依赖模拟器）
 - 品牌资源复用 `apps/desktop/public/zhigeng-*`
 - 验证：`cd apps/ios && xcodegen generate && swift test`；真机装上后键盘能在设置里启用、能打开主 App
-- 状态（2026-07-20）：骨架已生成，`swift test` 20/20 通过；generic iOS Simulator **BUILD SUCCEEDED**；主 App 已替换占位 List，落地 Onboarding 四段 + 四 Tab（首页/活动/懂我/我的）；真机 App Group / Full Access / Rime 内存 spike 待做；ASR 真机流式待接通（试说暂为标注示例整理）
+- 状态（2026-07-20）：骨架已生成，`swift test` 20/20 通过；generic iOS Simulator **BUILD SUCCEEDED**；主 App 已替换占位 List，落地 Onboarding 四段 + 四 Tab（首页/活动/懂我/我的）；真机 App Group / Full Access 待做；ASR 真机流式待接通（试说暂为标注示例整理）
+
+### 决策修订：中文底座不用 librime，改为自研 Swift（2026-07-28）
+
+原计划的 BSD librime 三条都不成立：
+
+1. **内存**。键盘扩展只有 ~50MB 就会被杀，librime 的 Rime 引擎加上编译期词典要在这个预算里腾挪，属于把最紧张的资源交给一个我们改不动的 C++ 依赖。
+2. **许可证**。librime 本体是 BSD，但生态里能用的词库几乎都不是——rime-ice 是 GPL-3.0，其余多为 LGPL 或干脆无声明，跟闭源上架冲突。BSD 的引擎配不到能商用的数据，等于没有底座。
+3. **桥接成本**。Swift ↔ C++ 的构建、签名和崩溃排查开销，在一个纯查表 + Viterbi 的问题上不划算。
+
+现方案：`PinyinSegmenter`（音节切分成格）+ `PinyinComposer`（Viterbi 解码）+
+`PinyinFileDictionary`（mmap 二进制表）+ `PinyinSession`（编码缓冲状态机），
+全部在 `ZhigengCore`，可用 `swift test` 覆盖。词库由 `tools/pinyin-dict/build.py`
+从万象 RIME-LMDG 产出，`min-weight=300` 剪到 25MB（gzip 10MB），实测探针
+准确率 100%。mmap 让常驻内存只等于真正查过的页，这是能塞进扩展预算的原因。
+
+万象是 **CC-BY 4.0，必须署名**，见 `docs/ios-open-source-audit.md`。
 
 ### M0.5 — 主 App UI（当前）
 - Onboarding：品牌能力 → 试说学习 → 键盘验证 → 准备完成
