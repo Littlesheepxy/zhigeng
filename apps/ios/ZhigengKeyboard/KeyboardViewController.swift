@@ -920,7 +920,9 @@ struct KeyboardRootView: View {
 
 	@State private var mode: KeyboardMode = .voice
 	@State private var shifted = false
-	@State private var englishSymbols = false
+	/// Which plane the symbols page was entered from, so `返回` goes back there instead
+	/// of always dumping the user into English.
+	@State private var symbolsFrom: KeyboardMode?
 	@State private var pinyin = PinyinTable.session()
 	@State private var pinyinNineKey = false
 	@State private var deletePressActive = false
@@ -961,19 +963,23 @@ struct KeyboardRootView: View {
 			}
 
 			Group {
-				switch mode {
-				case .voice:
-					voicePlane
-				case .english:
-					englishPlane
-				case .pinyin:
-					pinyinPlane
+				if symbolsFrom != nil {
+					symbolsPlane
+				} else {
+					switch mode {
+					case .voice:
+						voicePlane
+					case .english:
+						englishPlane
+					case .pinyin:
+						pinyinPlane
+					}
 				}
 			}
 			.frame(maxWidth: .infinity, maxHeight: .infinity)
 			// A plain `switch` swaps the planes in place; the id is what makes SwiftUI
 			// treat it as one view leaving and another arriving, which the transition needs.
-			.id(mode)
+			.id(symbolsFrom == nil ? mode.rawValue : "symbols")
 			.transition(
 				.asymmetric(
 					insertion: .move(edge: slideForward ? .trailing : .leading),
@@ -1069,6 +1075,15 @@ struct KeyboardRootView: View {
 				) {
 					guard let text = pasteboardPreview else { return }
 					onInsert(text)
+					closePanel()
+				}
+				panelTile(
+					icon: pinyinNineKey ? "keyboard" : "circle.grid.3x3",
+					title: pinyinNineKey ? "全键盘" : "九宫格",
+					enabled: true
+				) {
+					pinyinNineKey.toggle()
+					pinyin?.nineKey = pinyinNineKey
 					closePanel()
 				}
 				Link(destination: URL(string: "zhigeng://settings")!) {
@@ -1377,22 +1392,12 @@ struct KeyboardRootView: View {
 
 	private var englishPlane: some View {
 		VStack(spacing: 6) {
-			if englishSymbols {
-				keyRow(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"])
-				keyRow(["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""])
-				HStack(spacing: 6) {
-					compactTextKey("ABC") { englishSymbols = false }
-					keyRowContent([".", ",", "?", "!", "'"])
-					holdDeleteKey
-				}
-			} else {
-				keyRow(["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"])
-				keyRow(["A", "S", "D", "F", "G", "H", "J", "K", "L"])
-				HStack(spacing: 6) {
-					shiftKey
-					keyRowContent(["Z", "X", "C", "V", "B", "N", "M"])
-					holdDeleteKey
-				}
+			keyRow(["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"])
+			keyRow(["A", "S", "D", "F", "G", "H", "J", "K", "L"])
+			HStack(spacing: 6) {
+				shiftKey
+				keyRowContent(["Z", "X", "C", "V", "B", "N", "M"])
+				holdDeleteKey
 			}
 			editToolbar
 		}
@@ -1575,14 +1580,11 @@ struct KeyboardRootView: View {
 		.frame(width: 48)
 	}
 
-	/// Same five slots as the English plane, so switching modes does not move the space
-	/// bar under the user's thumb. The layout toggle takes the slot `123` holds there.
+	/// Same five slots as the English plane, and `123` sits in the same corner doing the
+	/// same thing, so switching planes moves nothing under the user's thumb.
 	private var pinyinBottomRow: some View {
 		HStack(spacing: 6) {
-			compactTextKey(pinyinNineKey ? "全键" : "九键") {
-				pinyinNineKey.toggle()
-				pinyin?.nineKey = pinyinNineKey
-			}
+			compactTextKey("123") { openSymbols(from: .pinyin) }
 			if !pinyinNineKey {
 				compactTextKey("，") { pinyinPunctuate("，") }
 			}
@@ -1691,14 +1693,48 @@ struct KeyboardRootView: View {
 	/// Number/symbol entry + punctuation + trackpad space + send.
 	private var editToolbar: some View {
 		HStack(spacing: 6) {
-			compactTextKey(englishSymbols ? "ABC" : "123") {
-				englishSymbols.toggle()
-			}
+			compactTextKey("123") { openSymbols(from: .english) }
 			compactTextKey(",") { onInsert(",") }
 			trackpadSpace
 			compactTextKey(".") { onInsert(".") }
 			textActionKey(returnKeyLabel, action: { onInsert("\n") })
 		}
+	}
+
+	/// Shared by both typing planes: digits are digits either way, and only the
+	/// punctuation row and the way back differ by where the user came from.
+	private var symbolsPlane: some View {
+		let chinese = symbolsFrom == .pinyin
+		return VStack(spacing: 6) {
+			keyRow(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"])
+			keyRow(["-", "/", ":", ";", "(", ")", "¥", "&", "@", "\""])
+			HStack(spacing: 6) {
+				keyRowContent(
+					chinese
+						? ["。", "，", "、", "？", "！", "：", "；"]
+						: [".", ",", "?", "!", "'", "\"", ";"]
+				)
+				holdDeleteKey
+			}
+			HStack(spacing: 6) {
+				compactTextKey(chinese ? "拼" : "ABC") { closeSymbols() }
+				keyRowContent(chinese ? ["“", "”", "《", "》"] : ["[", "]", "{", "}"])
+				textActionKey(returnKeyLabel, action: { onInsert("\n") })
+			}
+		}
+	}
+
+	/// A live pinyin buffer means nothing on the symbols page, and silently dropping it
+	/// would lose keys the user already pressed, so it goes to the document first.
+	private func openSymbols(from origin: KeyboardMode) {
+		pinyinCommitTop()
+		slideForward = true
+		withAnimation(.easeOut(duration: 0.22)) { symbolsFrom = origin }
+	}
+
+	private func closeSymbols() {
+		slideForward = false
+		withAnimation(.easeOut(duration: 0.22)) { symbolsFrom = nil }
 	}
 
 	private var trackpadSpace: some View {
@@ -1937,9 +1973,12 @@ struct KeyboardRootView: View {
 	/// The plane slides in from the side it lives on, so a swipe and a tap on the
 	/// switcher read as the same movement through the same three surfaces.
 	private func select(_ next: KeyboardMode, forward: Bool) {
-		guard next != mode else { return }
+		guard next != mode || symbolsFrom != nil else { return }
 		slideForward = forward
-		withAnimation(.easeOut(duration: 0.22)) { mode = next }
+		withAnimation(.easeOut(duration: 0.22)) {
+			mode = next
+			symbolsFrom = nil
+		}
 	}
 }
 
