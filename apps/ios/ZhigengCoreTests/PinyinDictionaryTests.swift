@@ -16,6 +16,10 @@ final class PinyinDictionaryTests: XCTestCase {
 		composer.candidates(for: .full(typed), limit: 1).first?.text ?? ""
 	}
 
+	private func candidates(_ typed: String) -> [String] {
+		composer.candidates(for: .full(typed), limit: 12).map(\.text)
+	}
+
 	func testTableLoads() {
 		XCTAssertGreaterThan(dictionary.totalWeight, 1_000_000)
 		XCTAssertEqual(dictionary.entries(for: "zhongguo").first?.text, "中国")
@@ -61,5 +65,14 @@ final class PinyinDictionaryTests: XCTestCase {
 		XCTAssertEqual(best("xiexie"), "谢谢")
 		XCTAssertEqual(best("zenmeyang"), "怎么样")
 		XCTAssertEqual(best("meiyou"), "没有")
+	}
+
+	/// Wanxiang annotates 嗯 as n/ng; people type en. Without the alias these are empty
+	/// or land on 恩恩.
+	func testInterjectionEnAliases() {
+		XCTAssertEqual(best("en"), "嗯")
+		XCTAssertEqual(best("enen"), "嗯嗯")
+		XCTAssertEqual(best("enne"), "嗯呢")
+		XCTAssertTrue(candidates("en").contains("恩"))
 	}
 }

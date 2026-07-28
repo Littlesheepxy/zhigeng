@@ -68,6 +68,32 @@ def to_keys(toned: str) -> str:
     return unicodedata.normalize("NFC", stripped).replace("ü", "v").replace(" ", "")
 
 
+def key_variants(toned: str) -> list[str]:
+    """Canonical key plus how people type nasal interjections.
+
+    Wanxiang annotates 嗯 as n/ng (the phonetic reality). Phone users type en.
+    Without the alias, en/enen/enne land on 恩/恩恩/恩呢.
+    """
+    syllables = [to_keys(part) for part in toned.split()]
+    if not syllables:
+        return []
+    variants: list[list[str]] = [[]]
+    for syllable in syllables:
+        options = [syllable]
+        if syllable in ("n", "ng"):
+            options.append("en")
+        variants = [head + [option] for head in variants for option in options]
+    # Preserve order, drop duplicates (n-only words still emit a single en).
+    seen: set[str] = set()
+    keys: list[str] = []
+    for parts in variants:
+        key = "".join(parts)
+        if key and key not in seen:
+            seen.add(key)
+            keys.append(key)
+    return keys
+
+
 def is_han(text: str) -> bool:
     return all("\u4e00" <= ch <= "\u9fff" for ch in text)
 
@@ -92,11 +118,11 @@ def build_rows(dicts_dir: Path, min_weight: int):
     for word, toned, weight in wanxiang_rows(dicts_dir):
         if not is_han(word) or len(word) > MAX_WORD_CHARS:
             continue
-        key = to_keys(toned)
-        if not key.isascii() or not key.isalpha():
-            continue
-        # 啊 is listed once per tone; together they are how often it is read "a".
-        rows[(key, word)] = rows.get((key, word), 0) + weight
+        for key in key_variants(toned):
+            if not key.isascii() or not key.isalpha():
+                continue
+            # 啊 is listed once per tone; together they are how often it is read "a".
+            rows[(key, word)] = rows.get((key, word), 0) + weight
     return [
         (key, word, weight)
         for (key, word), weight in rows.items()
