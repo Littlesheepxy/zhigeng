@@ -17,21 +17,34 @@ final class AudioCaptureEngine: ObservableObject {
 	}
 
 	private var engine: AVAudioEngine?
+	private var exclusive = true
 	private nonisolated let tapState = AudioTapState()
 
 	func start(onPCM: @escaping (Data) -> Void, onLevel: ((Double) -> Void)? = nil) -> Bool {
 		stop()
 		configureTapState(onPCM: onPCM, onLevel: onLevel)
 		feedEnabled = true
+		exclusive = true
 		return startEngine()
 	}
 
 	/// Keep the mic engine warm without delivering PCM until `feedEnabled = true`.
+	/// Standby stays mixable so the user's music keeps playing until we actually record.
 	func startWarm(onPCM: @escaping (Data) -> Void, onLevel: ((Double) -> Void)? = nil) -> Bool {
 		stop()
 		configureTapState(onPCM: onPCM, onLevel: onLevel)
 		feedEnabled = false
+		exclusive = false
 		return startEngine()
+	}
+
+	/// Recording takes the session exclusively so other audio (music) is interrupted;
+	/// standby returns it to mixable. Re-activating in place keeps the warm engine and
+	/// PiP player alive, which a deactivate/reactivate cycle would tear down.
+	func setExclusive(_ value: Bool) {
+		guard value != exclusive else { return }
+		exclusive = value
+		try? applySessionCategory()
 	}
 
 	/// `deactivateSession: false` keeps the shared AVAudioSession alive so a
@@ -51,12 +64,21 @@ final class AudioCaptureEngine: ObservableObject {
 		}
 	}
 
+	private func applySessionCategory() throws {
+		let session = AVAudioSession.sharedInstance()
+		var options: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetoothHFP]
+		if !exclusive {
+			options.insert(.mixWithOthers)
+		}
+		try session.setCategory(.playAndRecord, mode: .measurement, options: options)
+		try session.setActive(true)
+	}
+
 	private func startEngine() -> Bool {
 		do {
 			let session = AVAudioSession.sharedInstance()
-			try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers])
 			try session.setPreferredSampleRate(16_000)
-			try session.setActive(true)
+			try applySessionCategory()
 
 			let engine = AVAudioEngine()
 			let input = engine.inputNode

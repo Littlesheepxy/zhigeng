@@ -298,6 +298,7 @@ final class KeyboardSessionController {
 		switch mode {
 		case .liveActivity:
 			capture.feedEnabled = true
+			capture.setExclusive(true)
 		case .pip:
 			guard capture.start(
 				onPCM: { [weak self] data in
@@ -331,6 +332,7 @@ final class KeyboardSessionController {
 		if mode == .pip {
 			capture.stop(deactivateSession: false)
 		}
+		capture.setExclusive(false)
 		writeSession(state: .processing)
 		liveActivity.update(status: "整理中", remainingSeconds: remainingSeconds())
 		client?.finish()
@@ -342,6 +344,7 @@ final class KeyboardSessionController {
 		if mode == .pip {
 			capture.stop(deactivateSession: false)
 		}
+		capture.setExclusive(false)
 		if abort {
 			client?.abort()
 		}
