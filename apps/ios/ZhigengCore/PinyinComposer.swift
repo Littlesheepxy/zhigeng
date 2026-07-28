@@ -45,18 +45,29 @@ public struct PinyinComposer {
 		wordPenalty = log(Double(max(dictionary.totalWeight, 2)))
 	}
 
-	public func candidates(for input: PinyinInput, limit: Int = 12) -> [PinyinCandidate] {
+	public func candidates(
+		for input: PinyinInput,
+		limit: Int = 12,
+		boosts: [String: Int] = [:]
+	) -> [PinyinCandidate] {
 		let lattice = wordLattice(input)
 		guard lattice.contains(where: { !$0.isEmpty }) else { return [] }
 
 		var ordered: [PinyinCandidate] = []
-		if let sentence = bestPath(lattice: lattice) {
+		if let sentence = bestPath(lattice: lattice, boosts: boosts) {
 			ordered.append(sentence)
 		}
 		// Under the whole-sentence pick, the words that start where the cursor is, so the
-		// user can commit a prefix and keep going.
+		// user can commit a prefix and keep going. Personal boosts reorder before length
+		// and corpus weight — that is the whole point of teaching the keyboard a word.
 		ordered += lattice[0]
-			.sorted { ($0.length, $0.weight) > ($1.length, $1.weight) }
+			.sorted { lhs, rhs in
+				let leftBoost = boosts[lhs.text] ?? 0
+				let rightBoost = boosts[rhs.text] ?? 0
+				if leftBoost != rightBoost { return leftBoost > rightBoost }
+				if lhs.length != rhs.length { return lhs.length > rhs.length }
+				return lhs.weight > rhs.weight
+			}
 			.map { PinyinCandidate(text: $0.text, length: $0.length) }
 
 		var seen: Set<String> = []
@@ -107,7 +118,7 @@ public struct PinyinComposer {
 
 	// MARK: - Viterbi
 
-	private func bestPath(lattice: [[Match]]) -> PinyinCandidate? {
+	private func bestPath(lattice: [[Match]], boosts: [String: Int]) -> PinyinCandidate? {
 		let count = lattice.count
 		var score = [Double?](repeating: nil, count: count + 1)
 		var back = [(from: Int, text: String)?](repeating: nil, count: count + 1)
@@ -117,7 +128,11 @@ public struct PinyinComposer {
 			guard let reached = score[start] else { continue }
 			for match in lattice[start] {
 				let end = start + match.length
-				let value = reached + log(Double(max(match.weight, 1))) - wordPenalty
+				// Personal boost is added in log-space. Level 5 ≈ e^10 ≈ 22k× on the
+				// linear weight, enough to lift a mid-corpus word over a heavier rival
+				// without inventing matches that are not in the table.
+				let personal = Double(boosts[match.text] ?? 0) * 2.0
+				let value = reached + log(Double(max(match.weight, 1))) - wordPenalty + personal
 				if score[end] == nil || value > score[end]! {
 					score[end] = value
 					back[end] = (from: start, text: match.text)

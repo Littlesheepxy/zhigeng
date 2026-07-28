@@ -32,9 +32,9 @@ public struct PinyinSession {
 		nineKey ? .nineKey(typed) : .full(typed)
 	}
 
-	public func candidates(limit: Int = 12) -> [PinyinCandidate] {
+	public func candidates(limit: Int = 12, boosts: [String: Int] = [:]) -> [PinyinCandidate] {
 		guard isComposing else { return [] }
-		return composer.candidates(for: input, limit: limit)
+		return composer.candidates(for: input, limit: limit, boosts: boosts)
 	}
 
 	// MARK: - Editing

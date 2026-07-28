@@ -56,6 +56,17 @@ final class PersonalLexiconTests: XCTestCase {
 		lexicon.forget(id: term.id)
 		XCTAssertTrue(lexicon.asrHotWords().isEmpty)
 	}
+
+	func testRecordUseAddsAndReinforces() {
+		let lexicon = PersonalLexicon()
+		XCTAssertEqual(lexicon.recordUse("锦秋")?.weight, 2)
+		XCTAssertEqual(lexicon.recordUse("锦秋")?.weight, 3)
+		XCTAssertEqual(lexicon.asrHotWords(), ["锦秋"])
+	}
+
+	func testRecordUseIgnoresBlank() {
+		XCTAssertNil(PersonalLexicon().recordUse("  "))
+	}
 }
 
 final class AppGroupBridgeTests: XCTestCase {

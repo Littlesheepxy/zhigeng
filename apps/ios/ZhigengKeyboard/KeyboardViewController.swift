@@ -137,6 +137,12 @@ final class KeyboardViewController: UIInputViewController {
 			},
 			onRequestHeight: { [weak self] height in
 				self?.setKeyboardHeight(height)
+			},
+			onPinyinBoosts: { [weak self] in
+				self?.pinyinBoosts() ?? [:]
+			},
+			onLearnPinyinPick: { [weak self] picked, ranking in
+				self?.learnPinyinPick(picked: picked, ranking: ranking)
 			}
 		)
 		if let hostingController {
@@ -722,6 +728,43 @@ final class KeyboardViewController: UIInputViewController {
 		}
 	}
 
+	private func pinyinBoosts() -> [String: Int] {
+		guard let data = try? bridge.readLexiconData(),
+		      let lexicon = try? PersonalLexicon.decode(from: data)
+		else { return [:] }
+		return Dictionary(uniqueKeysWithValues: lexicon.rimeBoosts().map { ($0.text, $0.weight) })
+	}
+
+	/// Picking a non-top candidate is a correction; every commit reinforces the word so
+	/// the next time the same keys are typed it climbs. Learning is best-effort — a
+	/// failed App Group write must not undo the insert that already happened.
+	private func learnPinyinPick(picked: String, ranking: [String]) {
+		let trimmed = picked.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !trimmed.isEmpty else { return }
+		do {
+			let lexicon: PersonalLexicon
+			if let data = try bridge.readLexiconData() {
+				lexicon = try PersonalLexicon.decode(from: data)
+			} else {
+				lexicon = PersonalLexicon()
+			}
+			if let top = ranking.first, top != trimmed {
+				let now = Date().timeIntervalSince1970
+				_ = lexicon.recordCorrection(
+					original: top,
+					replacement: trimmed,
+					requestId: "pinyin-\(now)",
+					insertedAt: now,
+					at: now
+				)
+			}
+			_ = lexicon.recordUse(trimmed)
+			try bridge.writeLexicon(lexicon.encode())
+		} catch {
+			// Insert already succeeded.
+		}
+	}
+
 	// MARK: - Correction learning (30s window after insert)
 
 	override func textDidChange(_ textInput: UITextInput?) {
@@ -925,6 +968,8 @@ struct KeyboardRootView: View {
 	var onEditCorrection: () -> Void
 	var onRedictate: () -> Void
 	var onRequestHeight: (CGFloat) -> Void
+	var onPinyinBoosts: () -> [String: Int]
+	var onLearnPinyinPick: (_ picked: String, _ ranking: [String]) -> Void
 
 	@State private var mode: KeyboardMode = .voice
 	@State private var shifted = false
@@ -1482,14 +1527,14 @@ struct KeyboardRootView: View {
 	}
 
 	private var pinyinCandidateBar: some View {
-		let candidates = pinyin?.candidates(limit: 20) ?? []
+		let candidates = pinyinCandidates(limit: 20)
 		return HStack(spacing: 6) {
 			ScrollView(.horizontal, showsIndicators: false) {
 				HStack(spacing: 2) {
 					// Offsets, not text: two candidates can render the same string.
 					ForEach(Array(candidates.enumerated()), id: \.offset) { index, candidate in
 						Button {
-							pinyinCommit(candidate)
+							pinyinCommit(candidate, ranking: candidates)
 						} 						label: {
 							Text(candidate.text)
 								.font(.system(size: 21))
@@ -1699,17 +1744,25 @@ struct KeyboardRootView: View {
 		}
 	}
 
-	private func pinyinCommit(_ candidate: PinyinCandidate) {
-		guard let text = pinyin?.commit(candidate) else { return }
+	private func pinyinCandidates(limit: Int) -> [PinyinCandidate] {
+		pinyin?.candidates(limit: limit, boosts: onPinyinBoosts()) ?? []
+	}
+
+	private func pinyinCommit(_ candidate: PinyinCandidate, ranking: [PinyinCandidate]? = nil) {
+		let seen = ranking ?? pinyinCandidates(limit: 20)
+		guard var session = pinyin else { return }
+		let text = session.commit(candidate)
+		pinyin = session
 		onInsert(text)
+		onLearnPinyinPick(text, seen.map(\.text))
 	}
 
 	@discardableResult
 	private func pinyinCommitTop() -> Bool {
-		guard let session = pinyin, session.isComposing,
-		      let top = session.candidates(limit: 1).first
-		else { return false }
-		pinyinCommit(top)
+		guard let session = pinyin, session.isComposing else { return false }
+		let ranking = pinyinCandidates(limit: 12)
+		guard let top = ranking.first else { return false }
+		pinyinCommit(top, ranking: ranking)
 		return true
 	}
 

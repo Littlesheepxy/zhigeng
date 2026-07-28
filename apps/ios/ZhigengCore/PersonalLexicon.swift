@@ -66,12 +66,12 @@ public struct CorrectionEvent: Equatable, Sendable {
 	}
 }
 
-/// Shared personal lexicon for Rime boosts and ASR hotWords.
+/// Shared personal lexicon for pinyin candidate boosts and ASR hotWords.
 ///
 /// Learning rules (v1):
-/// - same requestId
-/// - short window after insert
-/// - replacement must differ and be non-empty
+/// - pinyin: picking a non-top candidate records a correction; every commit
+///   reinforces via `recordUse`
+/// - voice: same requestId + short window after insert (see `recordCorrection`)
 /// - user can forget / undo later
 public final class PersonalLexicon: @unchecked Sendable {
 	public static let correctionWindowSeconds: TimeInterval = 30
@@ -132,6 +132,23 @@ public final class PersonalLexicon: @unchecked Sendable {
 			return terms[idx]
 		}
 		let term = PersonalTerm(text: t, source: .manual, kind: kind, weight: 3, lastUsedAt: now())
+		terms.append(term)
+		return term
+	}
+
+	/// Reinforce a word the user actually committed (pinyin pick, voice correction, …).
+	/// Unlike `recordCorrection` there is no window — choosing it is the signal.
+	@discardableResult
+	public func recordUse(_ text: String, source: PersonalTermSource = .pinyinCorrection) -> PersonalTerm? {
+		let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !t.isEmpty else { return nil }
+		if let idx = terms.firstIndex(where: { $0.text.caseInsensitiveCompare(t) == .orderedSame }) {
+			terms[idx].weight += 1
+			terms[idx].lastUsedAt = now()
+			terms[idx].source = source
+			return terms[idx]
+		}
+		let term = PersonalTerm(text: t, source: source, weight: 2, lastUsedAt: now(), createdAt: now())
 		terms.append(term)
 		return term
 	}
