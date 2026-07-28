@@ -29,6 +29,7 @@
 | 路径 | 来源 | Commit | 许可证 | 修改 |
 |------|------|--------|--------|------|
 | `ZhigengCore/Resources/pinyin.zpd` | [RIME-LMDG 万象](https://github.com/amzxyz/RIME-LMDG) release `dict-nightly` 的 `dicts.zip` | 2026-07-28 取 | **CC-BY 4.0** | 由 `tools/pinyin-dict/build.py` 取 `zi` + `jichu` 两表，去声调、ü→v、按 key 排序后打成二进制；weight ≥ 300 剪枝 |
+| `ZhigengCore/Resources/english.zed` | [FrequencyWords](https://github.com/hermitdave/FrequencyWords) `en_50k.txt` + [SymSpell](https://github.com/wolfgarbe/SymSpell) `frequency_bigramdictionary_en_243_342.txt` | 2026-07-28 取 | **MIT** + **MIT** | 由 `tools/english-dict/build.py` 合并：口语 unigram 补全 + bigram 下一词；只保留两边词汇交集的 bigram |
 
 **CC-BY 4.0 的署名是发行条件，不是可选项。** 已落地：「我的 → 设置与支持 → 开源声明」（`OpenSourceNoticesView`，`ZhigengApp/MeViews.swift`），写明词库来自 amzxyz/RIME-LMDG、CC-BY 4.0、修改范围，并附仓库与协议原文链接。改动词库来源或处理方式时必须同步改这一页。
 

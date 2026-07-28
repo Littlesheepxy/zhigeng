@@ -287,6 +287,35 @@ struct OpenSourceNoticesView: View {
 				.padding(.vertical, 2)
 			}
 
+			Section("英文联想") {
+				VStack(alignment: .leading, spacing: 6) {
+					Text("FrequencyWords（英文词频）")
+						.font(.subheadline.weight(.semibold))
+					Text("© hermitdave，MIT。取 OpenSubtitles 语料的英文 5 万词频表作补全排序。")
+						.font(.caption)
+						.foregroundStyle(.secondary)
+					Link(
+						"github.com/hermitdave/FrequencyWords",
+						destination: URL(string: "https://github.com/hermitdave/FrequencyWords")!
+					)
+					.font(.caption)
+				}
+				.padding(.vertical, 2)
+				VStack(alignment: .leading, spacing: 6) {
+					Text("SymSpell bigram 词典")
+						.font(.subheadline.weight(.semibold))
+					Text("© Wolf Garbe，MIT。取 Google Books Ngram ∩ SCOWL 的英文二元组，用于空格后的下一词预测。")
+						.font(.caption)
+						.foregroundStyle(.secondary)
+					Link(
+						"github.com/wolfgarbe/SymSpell",
+						destination: URL(string: "https://github.com/wolfgarbe/SymSpell")!
+					)
+					.font(.caption)
+				}
+				.padding(.vertical, 2)
+			}
+
 			Section("其他") {
 				VStack(alignment: .leading, spacing: 6) {
 					Text("KeyboardHostBundleID")

@@ -844,6 +844,14 @@ private enum PinyinTable {
 	}
 }
 
+private enum EnglishTable {
+	static let shared: EnglishFileDictionary? = try? EnglishFileDictionary.bundled()
+
+	static func session() -> EnglishSession? {
+		shared.map { EnglishSession(dictionary: $0) }
+	}
+}
+
 enum KeyboardMode: String, CaseIterable, Identifiable {
 	case voice
 	case english
@@ -924,6 +932,9 @@ struct KeyboardRootView: View {
 	/// of always dumping the user into English.
 	@State private var symbolsFrom: KeyboardMode?
 	@State private var pinyin = PinyinTable.session()
+	@State private var english = EnglishTable.session()
+	/// Capitalize the next committed English word (shift, or start of sentence).
+	@State private var englishCapitalize = false
 	@State private var pinyinNineKey = false
 	@State private var deletePressActive = false
 	@State private var panelOpen = false
@@ -941,6 +952,8 @@ struct KeyboardRootView: View {
 			pinyinCodeLine
 			if isComposing {
 				pinyinCandidateBar
+			} else if showsEnglishCandidates {
+				englishCandidateBar
 			} else {
 				topBar
 			}
@@ -1022,6 +1035,10 @@ struct KeyboardRootView: View {
 
 	private var isComposing: Bool {
 		mode == .pinyin && pinyin?.isComposing == true
+	}
+
+	private var showsEnglishCandidates: Bool {
+		mode == .english && !(english?.candidates().isEmpty ?? true)
 	}
 
 	private var desiredHeight: CGFloat { KeyboardMode.baseHeight }
@@ -1403,6 +1420,29 @@ struct KeyboardRootView: View {
 		}
 	}
 
+	private var englishCandidateBar: some View {
+		let candidates = english?.candidates(limit: 12) ?? []
+		return HStack(spacing: 6) {
+			ScrollView(.horizontal, showsIndicators: false) {
+				HStack(spacing: 2) {
+					ForEach(Array(candidates.enumerated()), id: \.offset) { index, word in
+						Button {
+							englishCommit(word)
+						} label: {
+							Text(englishDisplay(word))
+								.font(.system(size: 21))
+								.foregroundStyle(index == 0 ? Color.accentColor : Color.primary)
+								.padding(.horizontal, 10)
+								.frame(height: KeyboardMode.topRowHeight)
+						}
+						.buttonStyle(.plain)
+					}
+				}
+			}
+		}
+		.frame(height: KeyboardMode.topRowHeight)
+	}
+
 	// MARK: - Pinyin
 
 	private var pinyinPlane: some View {
@@ -1690,14 +1730,103 @@ struct KeyboardRootView: View {
 		pinyin?.backspace() ?? false
 	}
 
+	// MARK: - English
+
+	/// Letters go into the document immediately — buffering like pinyin would make English
+	/// feel broken. The session only tracks what is in flight so the bar can complete it.
+	private func englishType(_ display: String) {
+		guard mode == .english,
+		      let character = display.first,
+		      character.isLetter
+		else {
+			onInsert(display)
+			return
+		}
+		if english?.typed.isEmpty == true {
+			englishCapitalize = character.isUppercase
+		}
+		english?.append(character)
+		onInsert(display)
+	}
+
+	private func englishDisplay(_ word: String) -> String {
+		guard englishCapitalize, let first = word.first else { return word }
+		return String(first).uppercased() + word.dropFirst()
+	}
+
+	private func englishCommit(_ word: String) {
+		guard var session = english else {
+			onInsert(word + " ")
+			return
+		}
+		if session.isComposing {
+			for _ in session.typed {
+				onDelete()
+			}
+		}
+		let text = session.commit(englishDisplay(word))
+		english = session
+		englishCapitalize = false
+		onInsert(text)
+	}
+
+	private func englishSpace() {
+		guard mode == .english, var session = english else {
+			onInsert(" ")
+			return
+		}
+		if session.isComposing {
+			_ = session.commitTyped()
+			english = session
+			englishCapitalize = false
+			onInsert(" ")
+			return
+		}
+		// Empty buffer: prefer the top next-word suggestion, matching Chinese space.
+		if let top = session.candidates(limit: 1).first {
+			englishCommit(top)
+			return
+		}
+		onInsert(" ")
+	}
+
+	private func englishPunctuate(_ mark: String) {
+		if mode == .english, english?.isComposing == true {
+			_ = english?.commitTyped()
+			englishCapitalize = false
+		}
+		onInsert(mark)
+		if mark == "." || mark == "!" || mark == "?" {
+			englishCapitalize = true
+		}
+	}
+
+	private func englishReturn() {
+		if mode == .english, english?.isComposing == true {
+			_ = english?.commitTyped()
+			englishCapitalize = false
+		}
+		onInsert("\n")
+		englishCapitalize = true
+	}
+
+	/// Delete the last typed letter from both the document and the completion buffer.
+	private func englishBackspace() -> Bool {
+		guard var session = english, session.backspace() else { return false }
+		english = session
+		onDelete()
+		if session.typed.isEmpty { englishCapitalize = false }
+		return true
+	}
+
 	/// Number/symbol entry + punctuation + trackpad space + send.
 	private var editToolbar: some View {
 		HStack(spacing: 6) {
 			compactTextKey("123") { openSymbols(from: .english) }
-			compactTextKey(",") { onInsert(",") }
+			compactTextKey(",") { englishPunctuate(",") }
 			trackpadSpace
-			compactTextKey(".") { onInsert(".") }
-			textActionKey(returnKeyLabel, action: { onInsert("\n") })
+			compactTextKey(".") { englishPunctuate(".") }
+			textActionKey(returnKeyLabel, action: { englishReturn() })
 		}
 	}
 
@@ -1728,6 +1857,10 @@ struct KeyboardRootView: View {
 	/// would lose keys the user already pressed, so it goes to the document first.
 	private func openSymbols(from origin: KeyboardMode) {
 		pinyinCommitTop()
+		if origin == .english, english?.isComposing == true {
+			_ = english?.commitTyped()
+			englishCapitalize = false
+		}
 		slideForward = true
 		withAnimation(.easeOut(duration: 0.22)) { symbolsFrom = origin }
 	}
@@ -1786,7 +1919,7 @@ struct KeyboardRootView: View {
 						if !trackpadActive,
 						   hypot(value.translation.width, value.translation.height) < 8
 						{
-							onInsert(" ")
+							englishSpace()
 						}
 					}
 			)
@@ -1871,6 +2004,7 @@ struct KeyboardRootView: View {
 						// repeat timer — a repeat that outlives the buffer would start
 						// eating committed text. Upgrade path is a buffer-aware timer.
 						if mode == .pinyin, pinyinBackspace() { return }
+						if mode == .english, englishBackspace() { return }
 						onDeleteHoldChanged(true)
 					}
 					.onEnded { _ in
@@ -1904,7 +2038,7 @@ struct KeyboardRootView: View {
 			ForEach(keys, id: \.self) { key in
 				let display = shifted ? key : key.lowercased()
 				Button {
-					onInsert(display)
+					englishType(display)
 					if shifted { shifted = false }
 				} label: {
 					Text(display)
@@ -1979,6 +2113,8 @@ struct KeyboardRootView: View {
 			mode = next
 			symbolsFrom = nil
 		}
+		english?.clear()
+		englishCapitalize = false
 	}
 }
 

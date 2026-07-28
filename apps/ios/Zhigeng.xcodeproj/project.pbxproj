@@ -22,6 +22,7 @@
 		55E7931E8C9F618AD537E925 /* ZhigengCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5963DF7682645B1D5305B833 /* ZhigengCore */; };
 		59346613E89B7CE74D85A849 /* ZhigengCore in Frameworks */ = {isa = PBXBuildFile; productRef = 77469C2DD25389D5EF7D1583 /* ZhigengCore */; };
 		5A465C360E7F6BE75DC9782B /* voice-mist.png in Resources */ = {isa = PBXBuildFile; fileRef = 31BFC947A8FD8FB98A11A094 /* voice-mist.png */; };
+		5F24873815D010E2C605AFFD /* Pods_Zhigeng.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 907BD9C01EF9F101F36AEFB9 /* Pods_Zhigeng.framework */; };
 		69FB4334A67DE146A5B806BC /* pinyin.zpd in Resources */ = {isa = PBXBuildFile; fileRef = 2BC7F8CC8DB959F68ECE308A /* pinyin.zpd */; };
 		6BBC313E66B608002AC0B214 /* DictationLiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E796142153ABCA35864F2E7 /* DictationLiveActivityController.swift */; };
 		75AEE0CFF2548E8C9BF33056 /* HomeViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CEDA95B4F5B0EB181B8EF86 /* HomeViews.swift */; };
@@ -29,7 +30,7 @@
 		7F3C061F0ED7EF8D6B8AC751 /* DictationAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1BE58314CA8B409C16735F /* DictationAttributes.swift */; };
 		81982304D7BC3C7BF61FD343 /* DictationSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 740A70F2E8638477863698A0 /* DictationSessionController.swift */; };
 		84CBFAC27D76B4DF9959ECA0 /* OnboardingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCC8E8666F7B1A749C704E3 /* OnboardingViews.swift */; };
-		9F951D9B0EB7C265615609D5 /* Pods_Zhigeng.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7448C06351A7C828BE43B4C5 /* Pods_Zhigeng.framework */; };
+		9BEEEBEB3A7A6D789B9A6C21 /* english.zed in Resources */ = {isa = PBXBuildFile; fileRef = 94614E96521C170CEF442647 /* english.zed */; };
 		A1D7583458057FF83AB97F6F /* KeyboardHostBundleID in Frameworks */ = {isa = PBXBuildFile; productRef = B0B144BEFD1A7126211DDA44 /* KeyboardHostBundleID */; };
 		A9A46BE2FF8F93E6C75DDF12 /* ZhigengKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0280329154F9812882484140 /* ZhigengKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A9B60D7E601E4BBF0CEC50EB /* ActivityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E66D6DBCF64518051BE1F049 /* ActivityViews.swift */; };
@@ -83,7 +84,6 @@
 		209128B150EC0723A1389901 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2AE9C4F8CAA71ECA307CF08B /* ZhigengKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ZhigengKeyboard.entitlements; sourceTree = "<group>"; };
 		2BC7F8CC8DB959F68ECE308A /* pinyin.zpd */ = {isa = PBXFileReference; path = pinyin.zpd; sourceTree = "<group>"; };
-		2CA601F0394DC352CBF550E2 /* Pods-Zhigeng.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Zhigeng.release.xcconfig"; path = "Target Support Files/Pods-Zhigeng/Pods-Zhigeng.release.xcconfig"; sourceTree = "<group>"; };
 		2F1C6E56B3162110657DB284 /* Zhigeng.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Zhigeng.entitlements; sourceTree = "<group>"; };
 		31A18956EFC95077F0CA45E2 /* RemoteStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteStore.swift; sourceTree = "<group>"; };
 		31BFC947A8FD8FB98A11A094 /* voice-mist.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "voice-mist.png"; sourceTree = "<group>"; };
@@ -93,15 +93,16 @@
 		4A450365035CCBF93FFB603C /* LexiconViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LexiconViews.swift; sourceTree = "<group>"; };
 		4CEDA95B4F5B0EB181B8EF86 /* HomeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViews.swift; sourceTree = "<group>"; };
 		52D496ED2AD85F6170550650 /* brand-mist.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "brand-mist.png"; sourceTree = "<group>"; };
-		534A24DA3E46C6C76AF27D15 /* Pods-Zhigeng.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Zhigeng.debug.xcconfig"; path = "Target Support Files/Pods-Zhigeng/Pods-Zhigeng.debug.xcconfig"; sourceTree = "<group>"; };
 		5E796142153ABCA35864F2E7 /* DictationLiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationLiveActivityController.swift; sourceTree = "<group>"; };
 		6691B8A2423217AD9B4A47DF /* DictationLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationLiveActivity.swift; sourceTree = "<group>"; };
 		740A70F2E8638477863698A0 /* DictationSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationSessionController.swift; sourceTree = "<group>"; };
-		7448C06351A7C828BE43B4C5 /* Pods_Zhigeng.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Zhigeng.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C642FB7290485FD907F923B /* AudioCaptureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureEngine.swift; sourceTree = "<group>"; };
 		7E1F7E0FD0E79E8B9E7F1073 /* MeViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeViews.swift; sourceTree = "<group>"; };
 		8D1BE58314CA8B409C16735F /* DictationAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationAttributes.swift; sourceTree = "<group>"; };
+		907BD9C01EF9F101F36AEFB9 /* Pods_Zhigeng.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Zhigeng.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		94614E96521C170CEF442647 /* english.zed */ = {isa = PBXFileReference; path = english.zed; sourceTree = "<group>"; };
 		A8AAB1086FABE6A55E9E27E9 /* RemoteViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteViews.swift; sourceTree = "<group>"; };
+		AA9505BDF7D5C927E1AC13C3 /* Pods-Zhigeng.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Zhigeng.debug.xcconfig"; path = "Target Support Files/Pods-Zhigeng/Pods-Zhigeng.debug.xcconfig"; sourceTree = "<group>"; };
 		ABCC8E8666F7B1A749C704E3 /* OnboardingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViews.swift; sourceTree = "<group>"; };
 		B543681826CC09499B6A8D71 /* VolcAsrClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolcAsrClient.swift; sourceTree = "<group>"; };
 		B8685C1BC4FA37F5E2E6B564 /* PictureInPictureSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PictureInPictureSession.swift; sourceTree = "<group>"; };
@@ -110,6 +111,7 @@
 		CDDDB816E7E6D13DF3C9D0B7 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		D8A21F54A20DA9A6D92452BF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		DAEFF83E6AA466CFF30A9430 /* VolcAsrEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolcAsrEngine.swift; sourceTree = "<group>"; };
+		DD4A6D694262BAE5848C3120 /* Pods-Zhigeng.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Zhigeng.release.xcconfig"; path = "Target Support Files/Pods-Zhigeng/Pods-Zhigeng.release.xcconfig"; sourceTree = "<group>"; };
 		DE5D9AE1DCBFC1AE3FE088AC /* ZhigengApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZhigengApp.swift; sourceTree = "<group>"; };
 		E2F09A1AF4CAFAFBF31F61C5 /* KeyboardSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardSessionController.swift; sourceTree = "<group>"; };
 		E57BC81060D2ADA0CAC90D9F /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
@@ -131,7 +133,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				55E7931E8C9F618AD537E925 /* ZhigengCore in Frameworks */,
-				9F951D9B0EB7C265615609D5 /* Pods_Zhigeng.framework in Frameworks */,
+				5F24873815D010E2C605AFFD /* Pods_Zhigeng.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -159,8 +161,8 @@
 				0B2B6468111FA37FFD63B548 /* ZhigengKeyboard */,
 				39705CE86DB3C6DED0C76550 /* ZhigengLiveActivity */,
 				A6DAFE3DBC561AEC18EFFA09 /* Products */,
-				C773E39FF26645AE5ECA87D4 /* Pods */,
-				C12FB8C21C45479EB3F3C788 /* Frameworks */,
+				CC3A1EE6B18538822DD084DA /* Pods */,
+				87691165FC6DA2014D3C9925 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -177,6 +179,7 @@
 		3C9C44FD8041F59D440CE6E2 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				94614E96521C170CEF442647 /* english.zed */,
 				2BC7F8CC8DB959F68ECE308A /* pinyin.zpd */,
 			);
 			path = Resources;
@@ -197,6 +200,14 @@
 			);
 			name = "Fold One";
 			path = ../..;
+			sourceTree = "<group>";
+		};
+		87691165FC6DA2014D3C9925 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				907BD9C01EF9F101F36AEFB9 /* Pods_Zhigeng.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		9E4A9CD26D9CF54D067E28FF /* Packages */ = {
@@ -235,14 +246,6 @@
 			path = public;
 			sourceTree = "<group>";
 		};
-		C12FB8C21C45479EB3F3C788 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				7448C06351A7C828BE43B4C5 /* Pods_Zhigeng.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		C6D079CC083CEFA2A5E15700 /* ZhigengApp */ = {
 			isa = PBXGroup;
 			children = (
@@ -270,11 +273,11 @@
 			path = ZhigengApp;
 			sourceTree = "<group>";
 		};
-		C773E39FF26645AE5ECA87D4 /* Pods */ = {
+		CC3A1EE6B18538822DD084DA /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				534A24DA3E46C6C76AF27D15 /* Pods-Zhigeng.debug.xcconfig */,
-				2CA601F0394DC352CBF550E2 /* Pods-Zhigeng.release.xcconfig */,
+				AA9505BDF7D5C927E1AC13C3 /* Pods-Zhigeng.debug.xcconfig */,
+				DD4A6D694262BAE5848C3120 /* Pods-Zhigeng.release.xcconfig */,
 			);
 			name = Pods;
 			path = Pods;
@@ -303,12 +306,12 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = F8ABBBD7C60E682F2D0120A4 /* Build configuration list for PBXNativeTarget "Zhigeng" */;
 			buildPhases = (
-				3D2685BB132CF422253514DE /* [CP] Check Pods Manifest.lock */,
+				28BC1769115B17B0A4F2FFE4 /* [CP] Check Pods Manifest.lock */,
 				B8B76FBFA2523BD5AA05A3BB /* Sources */,
 				600E344C0A1FA7F820E96A14 /* Resources */,
 				520DE93CCACA18A6F6FEADAE /* Frameworks */,
 				3CC07647055A1ED2B8CD4721 /* Embed Foundation Extensions */,
-				C9C0DDF3BE9397D8FF00E480 /* [CP] Embed Pods Frameworks */,
+				5DAE70E83592ED59317BCDE3 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -421,6 +424,7 @@
 			files = (
 				2B3369A2BE5011A3D048355A /* Assets.xcassets in Resources */,
 				F15029111B18C7EA80D95EF2 /* brand-mist.png in Resources */,
+				9BEEEBEB3A7A6D789B9A6C21 /* english.zed in Resources */,
 				69FB4334A67DE146A5B806BC /* pinyin.zpd in Resources */,
 				E1C7B1332C9274E76668E246 /* robin.png in Resources */,
 				5A465C360E7F6BE75DC9782B /* voice-mist.png in Resources */,
@@ -438,7 +442,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		3D2685BB132CF422253514DE /* [CP] Check Pods Manifest.lock */ = {
+		28BC1769115B17B0A4F2FFE4 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -460,7 +464,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		C9C0DDF3BE9397D8FF00E480 /* [CP] Embed Pods Frameworks */ = {
+		5DAE70E83592ED59317BCDE3 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -635,7 +639,7 @@
 		};
 		8E68E29B0FEFEAF0DC58F54C /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 534A24DA3E46C6C76AF27D15 /* Pods-Zhigeng.debug.xcconfig */;
+			baseConfigurationReference = AA9505BDF7D5C927E1AC13C3 /* Pods-Zhigeng.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ZhigengApp/Zhigeng.entitlements;
@@ -654,7 +658,7 @@
 		};
 		BEFF4F8B972C2EE56844BF0C /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 2CA601F0394DC352CBF550E2 /* Pods-Zhigeng.release.xcconfig */;
+			baseConfigurationReference = DD4A6D694262BAE5848C3120 /* Pods-Zhigeng.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = ZhigengApp/Zhigeng.entitlements;
