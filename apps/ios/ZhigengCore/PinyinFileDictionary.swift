@@ -57,12 +57,29 @@ public struct PinyinFileDictionary: PinyinDictionary {
 		else { throw LoadError.truncated }
 	}
 
-	/// The table shipped with the framework, built by `tools/pinyin-dict/build.py`.
+	/// The table shipped with the app, built by `tools/pinyin-dict/build.py`.
 	public static func bundled() throws -> PinyinFileDictionary {
-		guard let url = Bundle.module.url(forResource: "pinyin", withExtension: "zpd") else {
-			throw LoadError.unreadable
-		}
+		guard let url = bundledURL() else { throw LoadError.unreadable }
 		return try PinyinFileDictionary(contentsOf: url)
+	}
+
+	/// The 26MB table ships once, in the containing app. An extension lives at
+	/// `Zhigeng.app/PlugIns/X.appex` and reads its way up to the app bundle instead of
+	/// carrying a second copy, which is what kept the installed size at 73MB.
+	///
+	/// Walking up is bounded to the two levels that nesting actually uses; a plain loop
+	/// to the filesystem root would happily find a stale table in some parent directory.
+	static func bundledURL() -> URL? {
+		if let url = Bundle.main.url(forResource: "pinyin", withExtension: "zpd") {
+			return url
+		}
+		var directory = Bundle.main.bundleURL
+		for _ in 0..<2 {
+			directory = directory.deletingLastPathComponent()
+			let candidate = directory.appendingPathComponent("pinyin.zpd")
+			if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+		}
+		return nil
 	}
 
 	public func hasPrefix(_ prefix: String) -> Bool {

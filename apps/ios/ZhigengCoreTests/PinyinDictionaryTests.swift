@@ -8,7 +8,7 @@ final class PinyinDictionaryTests: XCTestCase {
 	private var composer: PinyinComposer!
 
 	override func setUpWithError() throws {
-		dictionary = try PinyinFileDictionary.bundled()
+		dictionary = try TestDictionary.load()
 		composer = PinyinComposer(dictionary: dictionary)
 	}
 

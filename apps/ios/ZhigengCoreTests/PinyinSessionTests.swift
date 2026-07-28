@@ -6,7 +6,7 @@ final class PinyinSessionTests: XCTestCase {
 	private var session: PinyinSession!
 
 	override func setUpWithError() throws {
-		session = PinyinSession(dictionary: try PinyinFileDictionary.bundled())
+		session = PinyinSession(dictionary: try TestDictionary.load())
 	}
 
 	private func type(_ text: String) {

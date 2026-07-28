@@ -33,6 +33,9 @@ targets:
         buildPhase: resources
       - path: ../../prototypes/zhigeng-mobile/public/voice-mist.png
         buildPhase: resources
+      # Only the app carries the pinyin table; ZhigengKeyboard reads it from here.
+      - path: ZhigengCore/Resources/pinyin.zpd
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.zhigeng.ios
