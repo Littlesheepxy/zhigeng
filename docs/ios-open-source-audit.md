@@ -28,7 +28,11 @@
 
 | 路径 | 来源 | Commit | 许可证 | 修改 |
 |------|------|--------|--------|------|
-| （尚无复制） | — | — | — | M0 先自研 App Group / PersonalLexicon；Rime 绑定在 spike 后登记 |
+| `ZhigengCore/Resources/pinyin.zpd` | [RIME-LMDG 万象](https://github.com/amzxyz/RIME-LMDG) release `dict-nightly` 的 `dicts.zip` | 2026-07-28 取 | **CC-BY 4.0** | 由 `tools/pinyin-dict/build.py` 取 `zi` + `jichu` 两表，去声调、ü→v、按 key 排序后打成二进制；weight ≥ 300 剪枝 |
+
+**CC-BY 4.0 的署名是发行条件，不是可选项。** 上架前必须在 App 内有一处可达的开源声明页（「我的 → 关于」之类）写明：拼音词库来自 amzxyz/RIME-LMDG，CC-BY 4.0，附仓库链接。目前 App 内还没有这个页面，属未结项。
+
+被许可证挡掉的同类词库，避免以后重复调研：雾凇拼音 / 白霜拼音 / libpinyin / 深蓝词库转换均为 GPL-3.0，rime-essay 与 rime-octagram-data 为 LGPL-3.0，CustomPinyinDictionary 无 LICENSE 文件（默认保留所有权利）。万象是唯一宽松许可且质量达标的。
 
 ## Spike 验收清单（真机）
 

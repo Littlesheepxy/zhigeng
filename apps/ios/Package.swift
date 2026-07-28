@@ -13,7 +13,8 @@ let package = Package(
 	targets: [
 		.target(
 			name: "ZhigengCore",
-			path: "ZhigengCore"
+			path: "ZhigengCore",
+			resources: [.copy("Resources/pinyin.zpd")]
 		),
 		.testTarget(
 			name: "ZhigengCoreTests",
