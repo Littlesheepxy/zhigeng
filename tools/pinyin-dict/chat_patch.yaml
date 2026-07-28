@@ -1,0 +1,143 @@
+# Chat / colloquial patch for the on-device pinyin table.
+#
+# Not scraped from Sogou or copied from GPL Rime schemes. Entries are everyday
+# WeChat-style expressions that Wanxiang either never listed or pruned below the
+# short-word floor. Pinyin is space-separated, tones optional (stripped at build).
+# Weights are synthetic: high enough to surface in the bar, low enough not to
+# outrank real corpus heavyweights like 可以 / 不是.
+#
+# Format: word <tab> pinyin <tab> weight
+
+# --- fillers / acknowledgements ---
+嗯呢	en ne	8000
+嗯呐	en na	5000
+嗯哪	en na	4000
+嗯嗯呢	en en ne	3000
+啊啊	a a	6000
+啊啊啊	a a a	4000
+哦哦	o o	5000
+噢噢	o o	4000
+喔喔	o o	3000
+呃呃	e e	2000
+额额	e e	2000
+欸嘿	ei hei	3000
+诶嘿	ei hei	3000
+哎嘿	ai hei	2000
+哎呀呀	ai ya ya	2000
+
+# --- soft agreement ---
+好滴	hao di	5000
+好哒	hao da	5000
+好的呢	hao de ne	4000
+好的呀	hao de ya	3000
+好的啦	hao de la	3000
+好嘞	hao lei	4000
+好喔	hao o	3000
+行滴	xing di	2000
+可以的	ke yi de	4000
+可以呀	ke yi ya	3000
+没问题的	mei wen ti de	3000
+收到收到	shou dao shou dao	4000
+在的在的	zai de zai de	4000
+在呢	zai ne	5000
+嘟嘟	du du	2000
+
+# --- reactions ---
+笑死	xiao si	6000
+笑死我了	xiao si wo le	5000
+笑不活了	xiao bu huo le	3000
+笑疯了	xiao feng le	3000
+泪目	lei mu	4000
+破防	po fang	5000
+破大防	po da fang	3000
+无语了	wu yu le	4000
+麻了	ma le	5000
+绝了	jue le	5000
+绝绝子	jue jue zi	4000
+太绝了	tai jue le	3000
+离谱了	li pu le	4000
+服了	fu le	4000
+服气	fu qi	3000
+真的假的	zhen de jia de	4000
+不是吧	bu shi ba	5000
+不会吧	bu hui ba	4000
+怎么会	zen me hui	3000
+
+# --- internet colloquial (hanzi form) ---
+躺平	tang ping	5000
+内卷	nei juan	5000
+摆烂	bai lan	4000
+摸鱼	mo yu	5000
+社死	she si	4000
+干饭	gan fan	4000
+干饭人	gan fan ren	3000
+打工人	da gong ren	4000
+集美	ji mei	3000
+老铁	lao tie	4000
+双击	shuang ji	3000
+种草	zhong cao	4000
+拔草	ba cao	3000
+安利	an li	4000
+剁手	duo shou	3000
+真香	zhen xiang	5000
+奥利给	ao li gei	3000
+安排上了	an pai shang le	4000
+搞起	gao qi	3000
+搞定了	gao ding le	4000
+冲冲冲	chong chong chong	3000
+冲鸭	chong ya	3000
+芜湖	wu hu	2000
+起飞	qi fei	3000
+永远的神	yong yuan de shen	4000
+
+# --- soft speech / typos people type ---
+介个	jie ge	3000
+酱紫	jiang zi	3000
+造吗	zao ma	3000
+木有	mu you	3000
+灰常	hui chang	3000
+素素	su su	2000
+童鞋	tong xie	3000
+筒子们	tong zi men	2000
+神马	shen ma	3000
+肿么	zhong me	3000
+酱紫的	jiang zi de	2000
+表酱紫	biao jiang zi	2000
+
+# --- hedges ---
+有点儿	you dian er	4000
+差不多吧	cha bu duo ba	3000
+还行吧	hai xing ba	4000
+一般般	yi ban ban	4000
+凑合吧	cou he ba	3000
+随便吧	sui bian ba	4000
+都行	dou xing	5000
+都可以	dou ke yi	4000
+看你	kan ni	3000
+你定	ni ding	3000
+你安排	ni an pai	3000
+
+# --- quick replies ---
+稍等哦	shao deng o	3000
+等一下哈	deng yi xia ha	3000
+马上到	ma shang dao	4000
+晚点说	wan dian shuo	3000
+回头聊	hui tou liao	3000
+先这样	xian zhe yang	4000
+就这样吧	jiu zhe yang ba	4000
+拜拜啦	bai bai la	3000
+晚安啦	wan an la	3000
+早上好呀	zao shang hao ya	3000
+
+# --- emphasis stacks ---
+好好好	hao hao hao	4000
+对对对	dui dui dui	4000
+是是是	shi shi shi	3000
+行行行	xing xing xing	3000
+来来来	lai lai lai	3000
+走走走	zou zou zou	2000
+快快快	kuai kuai kuai	2000
+等等等	deng deng deng	2000
+看看看	kan kan kan	2000
+嗯嗯嗯	en en en	4000
+啊对对对	a dui dui dui	3000

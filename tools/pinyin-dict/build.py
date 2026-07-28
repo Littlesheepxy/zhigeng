@@ -40,6 +40,7 @@ import struct
 import sys
 import unicodedata
 from pathlib import Path
+from typing import Optional
 
 MAGIC = b"ZPD1"
 VERSION = 1
@@ -50,8 +51,12 @@ RECORD = struct.Struct("<IIIBBH")
 MAX_WORD_CHARS = 8
 # Measured on the sentence probe: accuracy is flat from here up to no pruning at all
 # (the rare tail mostly adds noise), and falls off below -- at 500 the table has already
-# lost 卡号 and 银杏树. 300 keeps 761k rows, 25MB mmapped, 10MB compressed.
+# lost 卡号 and 银杏树. 300 keeps ~761k rows for longer words.
 DEFAULT_MIN_WEIGHT = 300
+# Chatty short words (好滴 236, 噢噢 128) sit just under 300. Lowering the floor for
+# ≤3-character entries recovers them without reopening the long rare-phrase tail.
+SHORT_WORD_CHARS = 3
+SHORT_WORD_MIN_WEIGHT = 100
 # Tone diacritics. The diaeresis of ü is deliberately not here: it distinguishes
 # lü from lu, and has to survive long enough to become the letter v.
 TONE_MARKS = {"\u0304", "\u0301", "\u030c", "\u0300"}
@@ -112,7 +117,31 @@ def wanxiang_rows(dicts_dir: Path):
                 yield parts[0], parts[1], int(parts[2])
 
 
-def build_rows(dicts_dir: Path, min_weight: int):
+def keep_weight(word: str, weight: int, min_weight: int) -> bool:
+    floor = (
+        SHORT_WORD_MIN_WEIGHT
+        if len(word) <= SHORT_WORD_CHARS
+        else min_weight
+    )
+    return weight >= floor
+
+
+def patch_rows(patch_path: Path):
+    """Yield (word, toned, weight) from the hand/AI chat patch."""
+    if not patch_path.exists():
+        return
+    with patch_path.open(encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) < 3 or not parts[2].isdigit():
+                continue
+            yield parts[0], parts[1], int(parts[2])
+
+
+def build_rows(dicts_dir: Path, min_weight: int, patch_path: Optional[Path] = None):
     """Collapse to (key, word, weight). Tone variants of one reading are one key."""
     rows = {}
     for word, toned, weight in wanxiang_rows(dicts_dir):
@@ -123,10 +152,22 @@ def build_rows(dicts_dir: Path, min_weight: int):
                 continue
             # 啊 is listed once per tone; together they are how often it is read "a".
             rows[(key, word)] = rows.get((key, word), 0) + weight
+
+    # Patch overlays Wanxiang: same key wins by summed weight so a listed chat word
+    # that already exists just gets a boost, and missing ones appear fresh.
+    if patch_path is not None:
+        for word, toned, weight in patch_rows(patch_path):
+            if not is_han(word) or len(word) > MAX_WORD_CHARS:
+                continue
+            for key in key_variants(toned):
+                if not key.isascii() or not key.isalpha():
+                    continue
+                rows[(key, word)] = rows.get((key, word), 0) + weight
+
     return [
         (key, word, weight)
         for (key, word), weight in rows.items()
-        if weight >= min_weight
+        if keep_weight(word, weight, min_weight)
     ]
 
 
@@ -206,9 +247,15 @@ def main() -> int:
         default=DEFAULT_MIN_WEIGHT,
         help="drop corpus entries rarer than this (raises quality, shrinks the table)",
     )
+    parser.add_argument(
+        "--patch",
+        type=Path,
+        default=here.parent / "chat_patch.yaml",
+        help="optional chat/colloquial overlay (word\\tpinyin\\tweight)",
+    )
     args = parser.parse_args()
 
-    rows = build_rows(args.dicts, args.min_weight)
+    rows = build_rows(args.dicts, args.min_weight, patch_path=args.patch)
     if not rows:
         print("no rows built", file=sys.stderr)
         return 1

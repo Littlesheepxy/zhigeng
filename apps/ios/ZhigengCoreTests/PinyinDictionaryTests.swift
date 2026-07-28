@@ -75,4 +75,14 @@ final class PinyinDictionaryTests: XCTestCase {
 		XCTAssertEqual(best("enne"), "嗯呢")
 		XCTAssertTrue(candidates("en").contains("恩"))
 	}
+
+	/// Short chat words rescued from under the long-word prune floor, plus the
+	/// curated patch for phrases Wanxiang never listed.
+	func testChatColloquialismsSurface() {
+		XCTAssertEqual(best("haodi"), "好滴")
+		XCTAssertEqual(best("aa"), "啊啊")
+		XCTAssertEqual(best("enne"), "嗯呢")
+		XCTAssertTrue(candidates("oo").contains("哦哦") || candidates("oo").contains("噢噢"))
+		XCTAssertEqual(best("jiege"), "介个")
+	}
 }
