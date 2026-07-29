@@ -127,6 +127,71 @@ public enum PinyinSyllableTable {
 		return all
 	}()
 
+	/// Typed letters -> the form the dictionary keys them by (`ü` written `v`). Same
+	/// domain as `canonical`, so `lv`, `lu` and `lü` all land on `lv`.
+	public static let keyForms: [String: String] = canonical.mapValues {
+		$0.replacingOccurrences(of: "ü", with: "v")
+	}
+
+	/// Typed prefix -> every syllable it could still turn into, in key form. This is what
+	/// lets half a syllable, or just its initial, stand for the whole thing.
+	public static let byPrefix: [String: [String]] = {
+		var table: [String: Set<String>] = [:]
+		for (typed, key) in keyForms {
+			var prefix = ""
+			for letter in typed {
+				prefix.append(letter)
+				table[prefix, default: []].insert(key)
+			}
+		}
+		return table.mapValues(Array.init)
+	}()
+
+	/// Syllables one habitual confusion away, in key form. Southern speakers merge the
+	/// retroflex initials and the nasal finals; n/l and f/h are the other common pair.
+	public static let fuzzy: [String: [String]] = {
+		let initials = [("z", "zh"), ("c", "ch"), ("s", "sh"), ("n", "l"), ("f", "h")]
+		let finals = [("an", "ang"), ("en", "eng"), ("in", "ing")]
+		let all = Set(keyForms.values)
+		var table: [String: Set<String>] = [:]
+		for syllable in all {
+			var variants: Set<String> = []
+			for (short, long) in initials {
+				if syllable.hasPrefix(long) {
+					variants.insert(short + syllable.dropFirst(long.count))
+				} else if syllable.hasPrefix(short) {
+					variants.insert(long + syllable.dropFirst(short.count))
+				}
+			}
+			for (short, long) in finals {
+				if syllable.hasSuffix(long) {
+					variants.insert(syllable.dropLast(long.count) + short)
+				} else if syllable.hasSuffix(short) {
+					variants.insert(syllable.dropLast(short.count) + long)
+				}
+			}
+			variants.formIntersection(all)
+			variants.remove(syllable)
+			if !variants.isEmpty { table[syllable] = variants }
+		}
+		return table.mapValues(Array.init)
+	}()
+
+	/// Letters sitting next to each other on the qwerty layout, for typo correction.
+	public static let keyNeighbours: [Character: [Character]] = {
+		var table: [Character: [Character]] = [:]
+		for row in ["qwertyuiop", "asdfghjkl", "zxcvbnm"] {
+			let letters = Array(row)
+			for (index, letter) in letters.enumerated() {
+				var near: [Character] = []
+				if index > 0 { near.append(letters[index - 1]) }
+				if index + 1 < letters.count { near.append(letters[index + 1]) }
+				table[letter] = near
+			}
+		}
+		return table
+	}()
+
 	private static func buildCanonical() -> [String: String] {
 		var table: [String: String] = [:]
 		for syllable in standard {

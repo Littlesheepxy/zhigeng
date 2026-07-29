@@ -83,32 +83,41 @@ public struct PinyinFileDictionary: PinyinDictionary {
 	}
 
 	public func hasPrefix(_ prefix: String) -> Bool {
-		let needle = Array(prefix.utf8)
-		guard !needle.isEmpty, recordCount > 0 else { return false }
-		return data.withUnsafeBytes { bytes in
-			let index = lowerBound(bytes, needle)
-			guard index < recordCount else { return false }
-			let (offset, length) = keyRange(bytes, index)
-			guard length >= needle.count else { return false }
-			return memcmp(bytes.baseAddress! + keyPoolOffset + offset, needle, needle.count) == 0
-		}
+		lookup(prefix) != .miss
 	}
 
 	public func entries(for key: String) -> [PinyinWordEntry] {
-		let needle = Array(key.utf8)
-		guard !needle.isEmpty, recordCount > 0 else { return [] }
-		return data.withUnsafeBytes { bytes -> [PinyinWordEntry] in
-			var index = lowerBound(bytes, needle)
-			var found: [PinyinWordEntry] = []
-			while index < recordCount {
+		guard case .words(let found) = lookup(key) else { return [] }
+		return found
+	}
+
+	/// The relaxed lattice runs this thousands of times per keystroke, so it does the one
+	/// binary search both answers need, reads the key straight out of the mapped bytes,
+	/// and builds `PinyinWordEntry` strings only on a real hit.
+	public func lookup(_ key: String) -> PinyinLookup {
+		guard !key.isEmpty, recordCount > 0 else { return .miss }
+		var key = key
+		return key.withUTF8 { needle in
+			data.withUnsafeBytes { bytes -> PinyinLookup in
+				var index = lowerBound(bytes, needle)
+				guard index < recordCount else { return .miss }
 				let (offset, length) = keyRange(bytes, index)
-				guard length == needle.count,
-				      memcmp(bytes.baseAddress! + keyPoolOffset + offset, needle, needle.count) == 0
-				else { break }
-				found.append(entry(bytes, index))
-				index += 1
+				guard length >= needle.count,
+				      memcmp(bytes.baseAddress! + keyPoolOffset + offset, needle.baseAddress!, needle.count) == 0
+				else { return .miss }
+				guard length == needle.count else { return .prefix }
+
+				var found: [PinyinWordEntry] = []
+				while index < recordCount {
+					let (offset, length) = keyRange(bytes, index)
+					guard length == needle.count,
+					      memcmp(bytes.baseAddress! + keyPoolOffset + offset, needle.baseAddress!, needle.count) == 0
+					else { break }
+					found.append(entry(bytes, index))
+					index += 1
+				}
+				return .words(found)
 			}
-			return found
 		}
 	}
 
@@ -137,14 +146,16 @@ public struct PinyinFileDictionary: PinyinDictionary {
 	}
 
 	/// First record whose key is >= `needle`, comparing raw bytes.
-	private func lowerBound(_ bytes: UnsafeRawBufferPointer, _ needle: [UInt8]) -> Int {
+	private func lowerBound(_ bytes: UnsafeRawBufferPointer, _ needle: UnsafeBufferPointer<UInt8>) -> Int {
 		var low = 0
 		var high = recordCount
 		while low < high {
 			let mid = (low + high) / 2
 			let (offset, length) = keyRange(bytes, mid)
 			let shared = min(length, needle.count)
-			var order = shared == 0 ? 0 : memcmp(bytes.baseAddress! + keyPoolOffset + offset, needle, shared)
+			var order = shared == 0
+				? 0
+				: memcmp(bytes.baseAddress! + keyPoolOffset + offset, needle.baseAddress!, shared)
 			if order == 0 { order = length < needle.count ? -1 : 0 }
 			if order < 0 {
 				low = mid + 1
