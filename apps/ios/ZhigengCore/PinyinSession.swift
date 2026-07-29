@@ -114,6 +114,13 @@ public struct PinyinSession {
 		return syllables.joined(separator: "'")
 	}
 
+	/// What to send when the user gives up on the table and taps the code line. Nine-key
+	/// holds digits, so the buffer itself would put `64426` in their message; the reading
+	/// shown on the code line is the only letters that exist for it.
+	public var letters: String {
+		(nineKey ? display : typed).replacingOccurrences(of: "'", with: "")
+	}
+
 	private func commonness(_ syllable: String) -> Int {
 		dictionary.entries(for: syllable).first?.weight ?? 0
 	}

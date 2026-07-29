@@ -1510,7 +1510,7 @@ struct KeyboardRootView: View {
 			if isComposing {
 				Button {
 					guard let session = pinyin else { return }
-					onInsert(session.typed.replacingOccurrences(of: "'", with: ""))
+					onInsert(session.letters)
 					pinyin?.clear()
 				} label: {
 					Text(pinyin?.display ?? "")

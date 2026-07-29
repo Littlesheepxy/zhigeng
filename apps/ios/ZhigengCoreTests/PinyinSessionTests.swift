@@ -78,6 +78,16 @@ final class PinyinSessionTests: XCTestCase {
 		XCTAssertEqual(session.display, "ni'hao")
 	}
 
+	/// Tapping the code line gives up on the table and sends the letters. Nine-key
+	/// buffers digits, so the raw buffer is not what anyone wants in their message.
+	func testEscapeHatchSendsLetters() {
+		type("ni'hao")
+		XCTAssertEqual(session.letters, "nihao")
+		session.nineKey = true
+		type("64426")
+		XCTAssertEqual(session.letters, "nihao")
+	}
+
 	func testSwitchingLayoutDropsAmbiguousBuffer() {
 		type("nihao")
 		session.nineKey = true
