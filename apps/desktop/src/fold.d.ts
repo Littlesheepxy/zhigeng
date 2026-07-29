@@ -150,6 +150,31 @@ interface FoldApi {
 		error?: string;
 	}>;
 	codexRemoteRevoke(clientId: string): Promise<{ ok: boolean; error?: string }>;
+	zhigengRemoteStatus(): Promise<{
+		configured: boolean;
+		deviceId: string | null;
+		state: "disabled" | "connecting" | "connected" | "error";
+		error: string | null;
+	}>;
+	zhigengRemotePairStart(): Promise<{
+		pairingId: string;
+		code: string;
+		qrPayload: string;
+		expiresAt: string;
+	}>;
+	zhigengRemotePairPoll(pairingId: string): Promise<{
+		status: "pending" | "claimed" | "expired" | "canceled";
+	}>;
+	zhigengRemoteDevices(): Promise<{
+		devices: Array<{
+			id: string;
+			kind: "mac" | "ios";
+			name: string;
+			lastSeenAt: string | null;
+			revokedAt: string | null;
+		}>;
+	}>;
+	zhigengRemoteRevoke(deviceId: string): Promise<{ ok: true }>;
 	getEpisode(id: string): Promise<EpisodeDetail | null>;
 	predictPickIntent(intent: string): Promise<{ ok: boolean }>;
 	predictInsertDraft(text: string): Promise<{ ok: boolean; pasted: boolean; error?: string }>;

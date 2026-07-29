@@ -6,17 +6,17 @@
   "scripts": {
     "dev": "node scripts/clean-electron-artifacts.mjs && vite",
     "build": "node scripts/clean-electron-artifacts.mjs && vite build",
-		"rebuild:native": "electron-rebuild -f -w better-sqlite3,@fold/macos-input && node scripts/prepare-whisper-addon.mjs && node ../../scripts/ensure-better-sqlite3.mjs electron",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3,@fold/macos-input && node scripts/prepare-whisper-addon.mjs && node ../../scripts/ensure-better-sqlite3.mjs electron",
     "build:icons": "bash scripts/build-zhigeng-assets.sh",
-		"typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
-		"test:hitl": "tsx electron/interaction-broker.self-check.ts",
-		"test:golden-flow": "tsx electron/golden-flow.self-check.ts",
-		"test:privacy": "tsx src/settings/lib/privacy.self-check.ts"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "test:hitl": "tsx electron/interaction-broker.self-check.ts",
+    "test:golden-flow": "tsx electron/golden-flow.self-check.ts",
+    "test:privacy": "tsx src/settings/lib/privacy.self-check.ts"
   },
-	"dependencies": {
-		"@fold/macos-input": "file:native/macos-input",
-		"@fold/connectors": "workspace:*",
+  "dependencies": {
+    "@fold/connectors": "workspace:*",
     "@fold/context": "workspace:*",
+    "@fold/macos-input": "file:native/macos-input",
     "@fold/memory": "workspace:*",
     "@fold/runtime": "workspace:*",
     "@fold/skills": "workspace:*",
@@ -28,14 +28,17 @@
     "framer-motion": "^12.4.7",
     "lucide-react": "^0.487.0",
     "playwright": "^1.61.1",
+    "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-grid-layout": "^1.4.4",
     "uiohook-napi": "^1.5.4",
+    "undici": "^6.27.0",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.9",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@types/react-grid-layout": "^1.3.5",

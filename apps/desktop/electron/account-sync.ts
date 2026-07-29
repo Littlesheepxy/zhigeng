@@ -17,7 +17,7 @@ export type AccountState = {
 	syncedAt?: number;
 };
 
-function accountApiBase(): string {
+export function accountApiBase(): string {
 	return (
 		process.env.FOLD_ACCOUNT_API_URL?.trim() ||
 		process.env.ACCOUNT_API_URL?.trim() ||

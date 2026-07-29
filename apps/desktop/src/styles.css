@@ -4255,6 +4255,117 @@ body:has(.react-grid-item.resizing) {
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.035);
 }
 
+.fold-remote-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 76px;
+  padding: 15px 18px;
+  border: 0.5px solid rgb(0 0 0 / 0.07);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.78);
+  box-shadow: 0 6px 22px rgb(0 0 0 / 0.03);
+}
+
+.fold-remote-compact > button {
+  flex: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fold-remote-compact strong,
+.fold-remote-compact small {
+  display: block;
+}
+
+.fold-remote-compact strong {
+  font-size: 14px;
+  color: #1d1d1f;
+}
+
+.fold-remote-compact small {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #86868b;
+}
+
+.fold-remote-compact-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  font-size: 12px;
+  color: #6e6e73;
+}
+
+.fold-remote-dialog-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.22);
+  backdrop-filter: blur(10px);
+}
+
+.fold-remote-dialog {
+  width: min(440px, 100%);
+  max-height: min(680px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px;
+  border: 0.5px solid rgb(0 0 0 / 0.08);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.18);
+}
+
+.fold-remote-dialog > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.fold-remote-dialog > header h2,
+.fold-remote-dialog > header p {
+  margin: 0;
+}
+
+.fold-remote-dialog > header h2 {
+  font-size: 17px;
+  color: #1d1d1f;
+}
+
+.fold-remote-dialog > header p {
+  margin-top: 5px;
+  max-width: 40ch;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #86868b;
+}
+
+.fold-remote-dialog > header > button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.055);
+  color: #6e6e73;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fold-remote-dialog .fold-codex-remote-pair {
+  justify-items: center;
+  text-align: center;
+}
+
 .fold-codex-remote-head {
   display: flex;
   align-items: flex-start;
@@ -4308,11 +4419,22 @@ body:has(.react-grid-item.resizing) {
 
 .fold-codex-remote-pair {
   display: grid;
+  justify-items: start;
   gap: 6px;
   margin-top: 14px;
   padding: 14px;
   border-radius: 14px;
   background: rgb(88 86 214 / 0.06);
+}
+
+.fold-codex-remote-pair img {
+  border-radius: 12px;
+  box-shadow: 0 1px 8px rgb(0 0 0 / 0.08);
+}
+
+.fold-codex-remote-pair strong {
+  font-size: 13px;
+  color: #1d1d1f;
 }
 
 .fold-codex-remote-code {

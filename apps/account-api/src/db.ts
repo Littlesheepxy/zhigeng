@@ -123,6 +123,101 @@ CREATE TABLE IF NOT EXISTS ai_cost_daily (
   updatedAt TEXT NOT NULL,
   UNIQUE(userId, day, feature, provider, model, funding)
 );
+
+CREATE TABLE IF NOT EXISTS device (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  lastSeenAt TEXT,
+  revokedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS device_user_idx ON device(userId, createdAt);
+CREATE UNIQUE INDEX IF NOT EXISTS device_one_active_mac_idx
+  ON device(userId) WHERE kind = 'mac' AND revokedAt IS NULL;
+
+CREATE TABLE IF NOT EXISTS device_token (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  deviceId TEXT NOT NULL REFERENCES device(id) ON DELETE CASCADE,
+  tokenHash TEXT NOT NULL UNIQUE,
+  prefix TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  lastUsedAt TEXT,
+  revokedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS device_token_user_idx ON device_token(userId, deviceId);
+
+CREATE TABLE IF NOT EXISTS pairing_session (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  macDeviceId TEXT NOT NULL REFERENCES device(id) ON DELETE CASCADE,
+  claimedDeviceId TEXT REFERENCES device(id) ON DELETE SET NULL,
+  codeHash TEXT NOT NULL,
+  status TEXT NOT NULL,
+  expiresAt TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  claimedAt TEXT
+);
+CREATE INDEX IF NOT EXISTS pairing_session_user_idx ON pairing_session(userId, createdAt);
+
+CREATE TABLE IF NOT EXISTS remote_thread (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  status TEXT NOT NULL,
+  clientRequestId TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  UNIQUE(userId, clientRequestId)
+);
+CREATE INDEX IF NOT EXISTS remote_thread_user_idx ON remote_thread(userId, updatedAt);
+
+CREATE TABLE IF NOT EXISTS remote_turn (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  threadId TEXT NOT NULL REFERENCES remote_thread(id) ON DELETE CASCADE,
+  clientRequestId TEXT NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  status TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  UNIQUE(userId, clientRequestId)
+);
+CREATE INDEX IF NOT EXISTS remote_turn_thread_idx ON remote_turn(userId, threadId, createdAt);
+
+CREATE TABLE IF NOT EXISTS remote_event (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  threadId TEXT NOT NULL REFERENCES remote_thread(id) ON DELETE CASCADE,
+  turnId TEXT REFERENCES remote_turn(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  createdAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS remote_event_turn_idx ON remote_event(userId, turnId, createdAt);
+
+CREATE TABLE IF NOT EXISTS remote_approval (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+  threadId TEXT NOT NULL REFERENCES remote_thread(id) ON DELETE CASCADE,
+  turnId TEXT NOT NULL REFERENCES remote_turn(id) ON DELETE CASCADE,
+  clientRequestId TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  requestJson TEXT NOT NULL,
+  status TEXT NOT NULL,
+  response TEXT,
+  expiresAt TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  respondedAt TEXT,
+  UNIQUE(userId, clientRequestId)
+);
+CREATE INDEX IF NOT EXISTS remote_approval_turn_idx ON remote_approval(userId, turnId, createdAt);
 `);
 
 export function nowIso(): string {

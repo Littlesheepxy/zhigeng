@@ -10,3 +10,6 @@ apps/desktop/out
 apps/desktop/release
 *.db
 audit-output/
+tools/pinyin-dict/.venv
+tools/pinyin-dict/corpora
+tools/english-dict/corpora

@@ -124,6 +124,17 @@ import {
 	shutdownCodexAppServer,
 	startCodexRemotePairing,
 } from "./codex-remote-control.js";
+import {
+	configureRemoteRelay,
+	forwardRemoteState,
+	getRemoteRelayStatus,
+	listRemoteDevices,
+	pollRemotePairing,
+	revokeRemoteDevice,
+	startRemotePairing,
+	startRemoteRelay,
+	stopRemoteRelay,
+} from "./remote-relay-client.js";
 import { PRODUCT_NAME } from "./brand.js";
 import {
 	FileInteractionStore,
@@ -359,6 +370,7 @@ let lastUndoReceipt: UndoReceipt | null = null;
 
 function emitState(state: FoldStateEvent) {
 	lastOverlayState = { ...lastOverlayState, ...state };
+	forwardRemoteState(state);
 	if (!overlayWindow || overlayWindow.isDestroyed()) {
 		createOverlayWindow();
 		return;
@@ -1887,6 +1899,15 @@ function registerIpc() {
 	ipcMain.handle("fold:codex-remote-revoke", (_e, clientId: string) =>
 		revokeCodexRemoteClient(clientId),
 	);
+	ipcMain.handle("fold:zhigeng-remote-status", () => getRemoteRelayStatus());
+	ipcMain.handle("fold:zhigeng-remote-pair-start", () => startRemotePairing());
+	ipcMain.handle("fold:zhigeng-remote-pair-poll", (_e, pairingId: string) =>
+		pollRemotePairing(pairingId),
+	);
+	ipcMain.handle("fold:zhigeng-remote-devices", () => listRemoteDevices());
+	ipcMain.handle("fold:zhigeng-remote-revoke", (_e, deviceId: string) =>
+		revokeRemoteDevice(deviceId),
+	);
 
 	ipcMain.handle("fold:get-episode", (_e, id: string) => {
 		if (!id) return null;
@@ -2751,6 +2772,8 @@ app.whenReady().then(() => {
 
 	contextEngine.start();
 	hydrateContextFromDb();
+	configureRemoteRelay({ executeTask, handleInteractionResponse });
+	startRemoteRelay();
 	stopHabitRecall = startHabitRecallLoop(() => recallHabitsFromUsage());
 	startMemoryConsolidationLoop();
 	const restoredInteraction = ensureInteractionBroker().current();
@@ -2843,6 +2866,7 @@ app.on("will-quit", () => {
 	stopHotkey?.();
 	stopHabitRecall?.();
 	stopMemoryConsolidationLoop();
+	stopRemoteRelay();
 	void shutdownCodexAppServer();
 	contextEngine.stop();
 });

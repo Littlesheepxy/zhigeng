@@ -182,6 +182,36 @@ contextBridge.exposeInMainWorld("fold", {
 			ok: boolean;
 			error?: string;
 		}>,
+	zhigengRemoteStatus: () =>
+		ipcRenderer.invoke("fold:zhigeng-remote-status") as Promise<{
+			configured: boolean;
+			deviceId: string | null;
+			state: "disabled" | "connecting" | "connected" | "error";
+			error: string | null;
+		}>,
+	zhigengRemotePairStart: () =>
+		ipcRenderer.invoke("fold:zhigeng-remote-pair-start") as Promise<{
+			pairingId: string;
+			code: string;
+			qrPayload: string;
+			expiresAt: string;
+		}>,
+	zhigengRemotePairPoll: (pairingId: string) =>
+		ipcRenderer.invoke("fold:zhigeng-remote-pair-poll", pairingId) as Promise<{
+			status: "pending" | "claimed" | "expired" | "canceled";
+		}>,
+	zhigengRemoteDevices: () =>
+		ipcRenderer.invoke("fold:zhigeng-remote-devices") as Promise<{
+			devices: Array<{
+				id: string;
+				kind: "mac" | "ios";
+				name: string;
+				lastSeenAt: string | null;
+				revokedAt: string | null;
+			}>;
+		}>,
+	zhigengRemoteRevoke: (deviceId: string) =>
+		ipcRenderer.invoke("fold:zhigeng-remote-revoke", deviceId) as Promise<{ ok: true }>,
 	getEpisode: (id: string) =>
 		ipcRenderer.invoke("fold:get-episode", id) as Promise<Record<string, unknown> | null>,
 	predictPickIntent: (intent: string) =>

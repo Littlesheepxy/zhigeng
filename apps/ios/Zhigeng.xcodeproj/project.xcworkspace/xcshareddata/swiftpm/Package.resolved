@@ -1,0 +1,15 @@
+{
+  "originHash" : "4d63b8b1d9bdfa6da08a30a243a19d51d0490fefe6321db232f38a2a329237a1",
+  "pins" : [
+    {
+      "identity" : "keyboardhostbundleid",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Muskupecli/KeyboardHostBundleID.git",
+      "state" : {
+        "revision" : "89c1f078ec4912fb9f9025ecca313b749556194a",
+        "version" : "1.0.1"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -7,37 +7,62 @@ function secretPath(): string {
 	return join(resolveDataDir(), "account.secret");
 }
 
-export function saveAccountSecret(apiKey: string): void {
+function remoteDeviceSecretPath(): string {
+	return join(resolveDataDir(), "remote-device.secret");
+}
+
+function saveSecret(path: string, value: string): void {
 	const dir = resolveDataDir();
 	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 	if (!safeStorage.isEncryptionAvailable()) {
 		// ponytail: fallback plaintext only when OS keychain unavailable; migrate when available
-		writeFileSync(secretPath(), apiKey, "utf8");
+		writeFileSync(path, value, "utf8");
 		return;
 	}
-	const encrypted = safeStorage.encryptString(apiKey);
-	writeFileSync(secretPath(), encrypted);
+	writeFileSync(path, safeStorage.encryptString(value));
 }
 
-export function loadAccountSecret(): string | null {
-	const path = secretPath();
+function loadSecret(path: string): string | null {
 	if (!existsSync(path)) return null;
 	try {
 		const raw = readFileSync(path);
 		if (!safeStorage.isEncryptionAvailable()) {
 			return raw.toString("utf8").trim() || null;
 		}
-		// Heuristic: encrypted blobs are binary; legacy plaintext starts with tm_
+		// Legacy plaintext tokens/JSON can exist from machines without Keychain access.
 		const asText = raw.toString("utf8");
-		if (asText.startsWith("tm_")) return asText.trim();
+		if (/^(tm_|zk_|zd_|\{)/.test(asText)) return asText.trim();
 		return safeStorage.decryptString(raw);
 	} catch {
 		return null;
 	}
 }
 
-export function clearAccountSecret(): void {
-	const path = secretPath();
+function clearSecret(path: string): void {
 	if (!existsSync(path)) return;
 	writeFileSync(path, "");
+}
+
+export function saveAccountSecret(apiKey: string): void {
+	saveSecret(secretPath(), apiKey);
+}
+
+export function loadAccountSecret(): string | null {
+	return loadSecret(secretPath());
+}
+
+export function clearAccountSecret(): void {
+	clearSecret(secretPath());
+}
+
+export function saveRemoteDeviceSecret(value: string): void {
+	saveSecret(remoteDeviceSecretPath(), value);
+}
+
+export function loadRemoteDeviceSecret(): string | null {
+	return loadSecret(remoteDeviceSecretPath());
+}
+
+export function clearRemoteDeviceSecret(): void {
+	clearSecret(remoteDeviceSecretPath());
 }
