@@ -366,8 +366,7 @@ a {
 }
 
 .zg-heading-char {
-	display: inline-block;
-	will-change: transform, opacity, filter;
+	display: inline;
 }
 
 .zg-feature-copy > p {
@@ -1746,7 +1745,7 @@ a {
 
 @media (max-width: 880px) {
 	.zg-page {
-		padding: 0 12px 72px;
+		padding: 0 16px 72px;
 	}
 
 	.zg-nav {
@@ -1784,7 +1783,29 @@ a {
 	}
 
 	.zg-hero-copy {
-		min-height: 470px;
+		min-height: 0;
+	}
+
+	.zg-hero-highlight-content {
+		align-items: stretch;
+	}
+
+	.zg-hero h1,
+	.zg-hero-message,
+	.zg-actions {
+		width: 100%;
+	}
+
+	.zg-hero h1 {
+		white-space: normal;
+		font-size: 32px;
+		line-height: 1.22;
+		letter-spacing: 0;
+	}
+
+	.zg-hero-then::before {
+		content: "\A";
+		white-space: pre;
 	}
 
 	.zg-actions {
@@ -1832,6 +1853,13 @@ a {
 
 	.zg-recap {
 		margin-top: 110px;
+		text-align: left;
+	}
+
+	.zg-recap p {
+		font-size: 24px;
+		letter-spacing: 0;
+		line-height: 1.45;
 	}
 
 	.zg-pricing {
@@ -1843,8 +1871,9 @@ a {
 
 @media (max-width: 520px) {
 	.zg-hero h1 {
-		font-size: 40px;
+		font-size: 30px;
 		white-space: normal;
+		letter-spacing: 0;
 	}
 
 	.zg-hero-copy {
@@ -1872,12 +1901,17 @@ a {
 	}
 
 	.zg-memory-followups li {
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: 8px 12px;
+		grid-template-columns: 1fr;
+		gap: 6px;
+	}
+
+	.zg-memory-followups li span {
+		white-space: normal;
 	}
 
 	.zg-memory-followups li em {
-		grid-column: 2;
+		grid-column: auto;
+		justify-self: start;
 	}
 
 	.zg-pricing {

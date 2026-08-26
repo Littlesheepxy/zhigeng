@@ -1351,6 +1351,51 @@ body {
 }
 
 @media (max-width: 880px) {
+	.zg-hero-copy {
+		min-height: 0;
+	}
+
+	.zg-hero h1 {
+		font-size: 32px;
+		line-height: 1.22;
+		letter-spacing: 0;
+		white-space: normal;
+	}
+
+	.zg-feature-copy h2,
+	.zg-agent h2 {
+		font-size: 26px;
+		letter-spacing: 0;
+		line-height: 1.28;
+	}
+
+	.zg-feature-copy > p,
+	.zg-agent-head > p {
+		font-size: 16px;
+		line-height: 1.7;
+	}
+
+	.zg-recap p {
+		font-size: 24px;
+		letter-spacing: 0;
+		line-height: 1.45;
+	}
+
+	.zg-final-cta h2,
+	.zg-page-cta h2,
+	.zg-page-intro h1 {
+		font-size: 28px;
+		letter-spacing: 0;
+		line-height: 1.28;
+	}
+
+	.zg-final-cta > p,
+	.zg-page-cta > p {
+		font-size: 16px;
+		line-height: 1.65;
+		max-width: none;
+	}
+
 	.zg-hero-product {
 		grid-template-columns: 1fr;
 		grid-template-areas:
@@ -1407,7 +1452,23 @@ body {
 
 @media (max-width: 520px) {
 	.zg-hero h1 {
-		font-size: 42px;
+		font-size: 30px;
+		letter-spacing: 0;
+	}
+
+	.zg-feature-copy h2,
+	.zg-agent h2 {
+		font-size: 24px;
+	}
+
+	.zg-recap p {
+		font-size: 22px;
+	}
+
+	.zg-final-cta h2,
+	.zg-page-cta h2,
+	.zg-page-intro h1 {
+		font-size: 26px;
 	}
 
 	.zg-hero-product {
@@ -1439,10 +1500,6 @@ body {
 	.zg-page-intro {
 		padding-top: 72px;
 		padding-bottom: 58px;
-	}
-
-	.zg-page-intro h1 {
-		font-size: 45px;
 	}
 
 	.zg-price-card,
