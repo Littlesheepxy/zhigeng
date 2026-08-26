@@ -1,11 +1,22 @@
-# 知更
-
-[![官网](https://img.shields.io/badge/官网-zhigeng.app-2563eb?style=flat-square)](https://zhigeng.app)
-[![下载 macOS](https://img.shields.io/badge/下载-macOS%20Apple%20Silicon-111827?style=flat-square)](https://zhigeng.app/Zhigeng-mac-arm64.dmg)
-[![Release](https://img.shields.io/github/v/release/Littlesheepxy/zhigeng?style=flat-square&label=Release)](https://github.com/Littlesheepxy/zhigeng/releases)
-[![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20Noncommercial-orange?style=flat-square)](LICENSE)
-
-> **AI 不缺能力，缺的是认识你。**
+<div align="center">
+  <img src="apps/desktop/public/zhigeng-app-icon.png" alt="知更 Logo" width="120" />
+  <h1>知更 Zhigeng</h1>
+  <p><strong>AI 不缺能力，缺的是认识你。</strong></p>
+  <p>独立、厂商中立的语音输入与记忆 Agent</p>
+  <p><a href="README.md">简体中文</a> · <a href="README_EN.md">English</a></p>
+  <p>
+    <a href="https://zhigeng.app"><img src="https://img.shields.io/badge/官网-zhigeng.app-2563eb?style=flat-square" alt="官网" /></a>
+    <a href="https://zhigeng.app/Zhigeng-mac-arm64.dmg"><img src="https://img.shields.io/badge/下载-macOS%20Apple%20Silicon-111827?style=flat-square" alt="下载 macOS" /></a>
+    <a href="https://github.com/Littlesheepxy/zhigeng/releases"><img src="https://img.shields.io/github/v/release/Littlesheepxy/zhigeng?style=flat-square&label=Release" alt="Release" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/源码开放-非商业许可-orange?style=flat-square" alt="PolyForm Noncommercial License" /></a>
+  </p>
+  <p>
+    <a href="https://zhigeng.app">官网</a> ·
+    <a href="https://zhigeng.app/Zhigeng-mac-arm64.dmg">下载 macOS</a> ·
+    <a href="https://github.com/Littlesheepxy/zhigeng/releases">Release</a> ·
+    <a href="mailto:littleyang78@gmail.com">联系作者</a>
+  </p>
+</div>
 
 知更是一个独立、厂商中立的语音输入与记忆 Agent。它不要求你迁移到新的聊天框，也不把你的记忆锁在某一家模型或大厂账号里。
 
@@ -147,9 +158,9 @@ packages/        模型路由、执行器、情境、记忆、技能
 docs/readme/     README 截图
 ```
 
-## 开源与协议
+## 源码与协议
 
-本仓库采用 **[PolyForm Noncommercial 1.0.0](LICENSE)**（非商业开源）：
+本仓库采用 **[PolyForm Noncommercial 1.0.0](LICENSE)**（源码开放、非商业许可）：
 
 | 可以 | 不可以 |
 |------|--------|
@@ -157,4 +168,16 @@ docs/readme/     README 截图
 | 个人与非商业场景自用、修改 | 接客户、卖服务、SaaS 化 |
 | 参与体验反馈与 Issue 讨论 | 去掉版权声明再分发 |
 
-完整法律文本见 [`LICENSE`](LICENSE)。商业合作、授权洽谈：[hello@zhigeng.app](mailto:hello@zhigeng.app)。
+完整法律文本见 [`LICENSE`](LICENSE)。商业合作、授权洽谈：[littleyang78@gmail.com](mailto:littleyang78@gmail.com)。
+
+## 关于作者
+
+**Little Yang**
+
+招聘出身的 AI Builder，现任 AI 产品负责人。持续探索 AI 产品、Agent 通信、机器身份与协作信任，以及 AI 如何真正进入人的日常工作。
+
+目前也在探索 **AI Dealroom**：一个面向 AI 时代的人与 Agent 的可信身份和机会网络，让创业者、人才、项目与 Agent 更容易发现彼此、验证能力并开始合作。
+
+欢迎创业者、AI Builder 和 Agent 研究者交流。
+
+📮 [littleyang78@gmail.com](mailto:littleyang78@gmail.com)
