@@ -1,5 +1,3 @@
 {
-	"installCommand": "cd ../.. && pnpm install",
-	"buildCommand": "cd ../.. && pnpm --filter @fold/site build",
 	"framework": "nextjs"
 }
