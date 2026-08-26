@@ -52,9 +52,12 @@ contextBridge.exposeInMainWorld("fold", {
 			detail: string;
 			downloadSizeMb?: number;
 			trialRemaining?: number;
+			localEngine: "whisper" | "sensevoice";
+			whisperReady: boolean;
+			sensevoiceReady: boolean;
 		}>,
-	downloadVoicePack: () =>
-		ipcRenderer.invoke("fold:download-voice-pack") as Promise<
+	downloadVoicePack: (engine?: "whisper" | "sensevoice") =>
+		ipcRenderer.invoke("fold:download-voice-pack", engine) as Promise<
 			{ ok: true; path: string } | { ok: false; error: string }
 		>,
 	getAsrRuntime: () =>
@@ -182,6 +185,36 @@ contextBridge.exposeInMainWorld("fold", {
 			ok: boolean;
 			error?: string;
 		}>,
+	zhigengRemoteStatus: () =>
+		ipcRenderer.invoke("fold:zhigeng-remote-status") as Promise<{
+			configured: boolean;
+			deviceId: string | null;
+			state: "disabled" | "connecting" | "connected" | "error";
+			error: string | null;
+		}>,
+	zhigengRemotePairStart: () =>
+		ipcRenderer.invoke("fold:zhigeng-remote-pair-start") as Promise<{
+			pairingId: string;
+			code: string;
+			qrPayload: string;
+			expiresAt: string;
+		}>,
+	zhigengRemotePairPoll: (pairingId: string) =>
+		ipcRenderer.invoke("fold:zhigeng-remote-pair-poll", pairingId) as Promise<{
+			status: "pending" | "claimed" | "expired" | "canceled";
+		}>,
+	zhigengRemoteDevices: () =>
+		ipcRenderer.invoke("fold:zhigeng-remote-devices") as Promise<{
+			devices: Array<{
+				id: string;
+				kind: "mac" | "ios";
+				name: string;
+				lastSeenAt: string | null;
+				revokedAt: string | null;
+			}>;
+		}>,
+	zhigengRemoteRevoke: (deviceId: string) =>
+		ipcRenderer.invoke("fold:zhigeng-remote-revoke", deviceId) as Promise<{ ok: true }>,
 	getEpisode: (id: string) =>
 		ipcRenderer.invoke("fold:get-episode", id) as Promise<Record<string, unknown> | null>,
 	predictPickIntent: (intent: string) =>
@@ -316,6 +349,10 @@ contextBridge.exposeInMainWorld("fold", {
 		ipcRenderer.invoke("fold:open-data-dir") as Promise<{ ok: boolean; path?: string; error?: string }>,
 	saveConfig: (config: Record<string, unknown>) =>
 		ipcRenderer.invoke("fold:save-config", config) as Promise<{ ok: boolean }>,
+	testLlm: (role?: "planner" | "fast") =>
+		ipcRenderer.invoke("fold:test-llm", role) as Promise<
+			{ ok: true; provider: string; model: string } | { ok: false; error: string }
+		>,
 	accountGetState: () =>
 		ipcRenderer.invoke("fold:account-get-state") as Promise<{
 			signedIn: boolean;

@@ -1,4 +1,5 @@
 node_modules
+.vercel
 dist
 apps/desktop/dist-electron
 .turbo
@@ -10,3 +11,6 @@ apps/desktop/out
 apps/desktop/release
 *.db
 audit-output/
+tools/pinyin-dict/.venv
+tools/pinyin-dict/corpora
+tools/english-dict/corpora

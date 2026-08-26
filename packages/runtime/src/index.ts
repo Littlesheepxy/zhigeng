@@ -41,7 +41,7 @@ export {
 	type StreamAhaGuessOptions,
 	type StructuredSpeech,
 } from "@fold/ai";
-export { hasPlannerApiKey, hasFastVisionApiKey } from "@fold/ai";
+export { hasPlannerApiKey, hasFastVisionApiKey, probeLlm } from "@fold/ai";
 export { inferPredictSurface, surfaceActionLabel, type PredictSurface } from "./predict-surface.js";
 export { predictContextSnippet } from "./predict-fallback.js";
 export {

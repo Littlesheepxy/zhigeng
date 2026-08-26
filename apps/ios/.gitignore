@@ -1,0 +1,5 @@
+.build/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+Pods/

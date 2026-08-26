@@ -1,10 +1,34 @@
 import { useEffect, useState } from "react";
-import { Keyboard, Mic } from "lucide-react";
+import { KeyRound, Keyboard, Mic } from "lucide-react";
 import type { FoldConfig, HotkeyAction, HotkeySettingsSnapshot } from "../types.js";
 import { BooleanField, ConnectionBadge, Field, StatusDot } from "../components/FormFields.js";
 import { InputHabitScannerPanel } from "./InputHabitScannerPanel.js";
 
 type VoiceSetup = Awaited<ReturnType<typeof window.fold.getVoiceSetup>>;
+
+const LLM_PROVIDERS = [
+	"openrouter",
+	"openai",
+	"anthropic",
+	"dashscope",
+	"deepseek",
+	"moonshot",
+	"zhipu",
+] as const;
+
+const LLM_KEY_FIELD: Record<(typeof LLM_PROVIDERS)[number], keyof FoldConfig> = {
+	openrouter: "openrouterApiKey",
+	openai: "openaiApiKey",
+	anthropic: "anthropicApiKey",
+	dashscope: "dashscopeApiKey",
+	deepseek: "deepseekApiKey",
+	moonshot: "moonshotApiKey",
+	zhipu: "zhipuApiKey",
+};
+
+function isLlmProvider(value: string): value is (typeof LLM_PROVIDERS)[number] {
+	return (LLM_PROVIDERS as readonly string[]).includes(value);
+}
 
 function SettingsGroup({
 	icon,
@@ -93,6 +117,8 @@ export function SettingsSection({
 	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [hotkeys, setHotkeys] = useState<HotkeySettingsSnapshot | null>(null);
 	const [hotkeyError, setHotkeyError] = useState<string | null>(null);
+	const [llmTesting, setLlmTesting] = useState(false);
+	const [llmTestResult, setLlmTestResult] = useState<string | null>(null);
 
 	const planTier = config.planTier ?? "free";
 
@@ -129,13 +155,62 @@ export function SettingsSection({
 	const handleDownloadVoicePack = async () => {
 		setDownloading(true);
 		setDownloadError(null);
-		const result = await window.fold.downloadVoicePack();
+		const engine = voiceSetup?.localEngine ?? config.localAsrEngine ?? "sensevoice";
+		const result = await window.fold.downloadVoicePack(engine);
 		setDownloading(false);
 		if (result.ok) {
 			refreshVoiceSetup();
 			return;
 		}
 		setDownloadError(result.error);
+	};
+
+	const persistLocalEngine = async (engine: "whisper" | "sensevoice") => {
+		const usingCloud = voiceSetup?.mode === "cloud";
+		const next = {
+			...config,
+			localAsrEngine: engine,
+			asrProvider: usingCloud
+				? config.asrProvider
+				: engine === "whisper"
+					? ("local-whisper" as const)
+					: ("local-funasr" as const),
+		};
+		onUpdate("localAsrEngine", engine);
+		if (!usingCloud && next.asrProvider) onUpdate("asrProvider", next.asrProvider);
+		await window.fold.saveConfig(next);
+		void window.fold.getVoiceSetup().then(setVoiceSetup);
+	};
+
+	const plannerProvider = isLlmProvider(config.plannerProvider ?? "openrouter")
+		? (config.plannerProvider as (typeof LLM_PROVIDERS)[number])
+		: "openrouter";
+	const plannerKeyField = LLM_KEY_FIELD[plannerProvider];
+	const fastProviderRaw = config.fastProvider?.trim() ?? "";
+	const fastProvider = isLlmProvider(fastProviderRaw) ? fastProviderRaw : "";
+	const fastKeyField = fastProvider ? LLM_KEY_FIELD[fastProvider] : null;
+	const showFastKey = Boolean(fastKeyField && fastKeyField !== plannerKeyField);
+
+	const handleLlmKeyChange = (field: keyof FoldConfig, value: string) => {
+		onUpdate(field, value);
+		if (value.trim() && !config.byokOverrides) onUpdateBoolean("byokOverrides", true);
+	};
+
+	const handleTestLlm = async () => {
+		setLlmTesting(true);
+		setLlmTestResult(null);
+		await window.fold.saveConfig({
+			...config,
+			byokOverrides:
+				config.byokOverrides || Boolean(String(config[plannerKeyField] ?? "").trim()),
+		});
+		const result = await window.fold.testLlm("planner");
+		setLlmTesting(false);
+		setLlmTestResult(
+			result.ok
+				? `连通 ${result.provider} / ${result.model}`
+				: result.error,
+		);
 	};
 
 	const voiceStatus =
@@ -146,6 +221,12 @@ export function SettingsSection({
 				: voiceSetup?.mode === "download-needed"
 					? "warn"
 					: "error";
+	const selectedEngine = config.localAsrEngine ?? voiceSetup?.localEngine ?? "sensevoice";
+	const selectedEngineReady =
+		!voiceSetup ||
+		(selectedEngine === "whisper"
+			? voiceSetup.whisperReady
+			: voiceSetup.sensevoiceReady);
 
 	return (
 		<div className="space-y-5">
@@ -246,7 +327,26 @@ export function SettingsSection({
 						<ConnectionBadge status={voiceStatus} />
 					</div>
 
-					{voiceSetup?.mode === "download-needed" && (
+					<div className="mt-3">
+						<label className="fold-home-field block space-y-1.5">
+							<span className="text-[13px] font-medium text-[#1d1d1f]">离线识别引擎</span>
+							<select
+								value={config.localAsrEngine ?? voiceSetup?.localEngine ?? "sensevoice"}
+								onChange={(event) => {
+									void persistLocalEngine(event.target.value as "whisper" | "sensevoice");
+								}}
+								aria-label="离线识别引擎"
+							>
+								<option value="sensevoice">阿里 SenseVoice（中文更准，约 230MB）</option>
+								<option value="whisper">Whisper（约 470MB）</option>
+							</select>
+							<span className="text-[11px] leading-relaxed text-[#86868b]">
+								云端智能转写用完后走这个。SenseVoice 是阿里开源模型，中文通常比 Whisper 准。
+							</span>
+						</label>
+					</div>
+
+					{!selectedEngineReady && (
 						<div className="mt-3 space-y-2">
 							<button
 								type="button"
@@ -256,13 +356,99 @@ export function SettingsSection({
 							>
 								{downloading
 									? "下载中…"
-									: `下载语音包（约 ${voiceSetup.downloadSizeMb ?? 470} MB）`}
+									: `下载${selectedEngine === "whisper" ? " Whisper" : " SenseVoice"}（约 ${selectedEngine === "whisper" ? 470 : 230} MB）`}
 							</button>
 							{downloadError && (
 								<p className="text-[11px] leading-relaxed text-red-600">{downloadError}</p>
 							)}
 						</div>
 					)}
+				</div>
+			</SettingsGroup>
+
+			<SettingsGroup icon={<KeyRound size={18} strokeWidth={1.75} />} title="自己的模型">
+				<div className="space-y-4 rounded-xl border border-black/8 bg-black/2.5 px-3.5 py-3">
+					<BooleanField
+						label="使用自己的 API Key"
+						checked={config.byokOverrides ?? false}
+						onChange={(v) => onUpdateBoolean("byokOverrides", v)}
+						hint="开启后智能整理、代回和 Agent 走你的 Key，不消耗体验次数。密钥存在系统钥匙串，不进 config.json。"
+					/>
+					<Field
+						label="规划模型厂商"
+						value={plannerProvider}
+						onChange={(v) => onUpdate("plannerProvider", v)}
+						options={[...LLM_PROVIDERS]}
+					/>
+					<Field
+						label="规划模型"
+						value={config.plannerModel ?? "openai/gpt-5.5"}
+						onChange={(v) => onUpdate("plannerModel", v)}
+						hint="Agent 任务规划。OpenRouter 填 openai/gpt-5.5 这种带厂商前缀的名字。"
+					/>
+					<Field
+						label={`${plannerProvider} API Key`}
+						type="password"
+						value={String(config[plannerKeyField] ?? "")}
+						onChange={(v) => handleLlmKeyChange(plannerKeyField, v)}
+					/>
+					<Field
+						label="自定义 Base URL（可选）"
+						value={config.plannerBaseUrl ?? ""}
+						onChange={(v) => onUpdate("plannerBaseUrl", v)}
+						hint="中转、Ollama 或兼容 OpenAI 的本地服务。Kimi Code Plan 可填 https://api.kimi.com/coding/v1"
+					/>
+					<Field
+						label="转写 / 代回厂商"
+						value={config.fastProvider ?? ""}
+						onChange={(v) => onUpdate("fastProvider", v)}
+						options={["", ...LLM_PROVIDERS]}
+						hint="留空则与规划模型同一家"
+					/>
+					<Field
+						label="转写 / 代回模型"
+						value={config.fastModel ?? ""}
+						onChange={(v) => onUpdate("fastModel", v)}
+						hint="留空用该厂商默认快模型"
+					/>
+					{showFastKey && fastKeyField ? (
+						<Field
+							label={`${fastProvider} API Key`}
+							type="password"
+							value={String(config[fastKeyField] ?? "")}
+							onChange={(v) => handleLlmKeyChange(fastKeyField, v)}
+						/>
+					) : null}
+					{fastProvider ? (
+						<Field
+							label="转写 / 代回 Base URL（可选）"
+							value={config.fastBaseUrl ?? ""}
+							onChange={(v) => onUpdate("fastBaseUrl", v)}
+						/>
+					) : null}
+					<div className="flex flex-wrap items-center gap-3 pt-1">
+						<button type="button" onClick={onSave} className="fold-home-save">
+							保存
+						</button>
+						<button
+							type="button"
+							onClick={() => void handleTestLlm()}
+							disabled={llmTesting}
+							className="fold-home-save disabled:opacity-60"
+						>
+							{llmTesting ? "测通中…" : "测通规划模型"}
+						</button>
+						{saved && (
+							<span className="text-[13px] font-medium text-emerald-600">已保存</span>
+						)}
+						{llmTestResult && (
+							<span
+								className={`text-[12px] leading-relaxed ${llmTestResult.startsWith("连通") ? "text-emerald-600" : "text-red-600"}`}
+							>
+								{llmTestResult}
+							</span>
+						)}
+					</div>
 				</div>
 			</SettingsGroup>
 
@@ -279,32 +465,13 @@ export function SettingsSection({
 				{advancedOpen && (
 					<div className="space-y-4 border-t border-black/6 px-3.5 py-4">
 						<p className="text-[11px] leading-relaxed text-[#86868b]">
-							仅供开发调试或自带 API Key（BYOK）。普通用户无需修改。
+							开发调试项。模型 API 请到上方「自己的模型」。
 						</p>
-
-						<BooleanField
-							label="使用自己的 API Key（BYOK）"
-							checked={config.byokOverrides ?? false}
-							onChange={(v) => onUpdateBoolean("byokOverrides", v)}
-							hint="开启后智能能力走你的 Key，不消耗体验次数"
-						/>
-						<Field
-							label="DashScope API Key"
-							type="password"
-							value={config.dashscopeApiKey ?? ""}
-							onChange={(v) => onUpdate("dashscopeApiKey", v)}
-						/>
-						<Field
-							label="OpenRouter API Key"
-							type="password"
-							value={config.openrouterApiKey ?? ""}
-							onChange={(v) => onUpdate("openrouterApiKey", v)}
-						/>
 						<Field
 							label="语音识别路由（开发）"
 							value={config.asrProvider ?? "auto"}
 							onChange={(v) => onUpdate("asrProvider", v)}
-							options={["auto", "local-whisper", "dashscope"]}
+							options={["auto", "local-whisper", "local-funasr", "dashscope"]}
 						/>
 						<Field
 							label="本地语音包路径（开发）"
@@ -313,35 +480,10 @@ export function SettingsSection({
 							hint="留空则使用默认路径 ~/.fold/models/ggml-small.bin"
 						/>
 						<Field
-							label="Planner Provider"
-							value={config.plannerProvider ?? "openrouter"}
-							onChange={(v) => onUpdate("plannerProvider", v)}
-							options={["openrouter", "openai", "anthropic", "dashscope", "deepseek", "moonshot"]}
-						/>
-						<Field
-							label="Planner Model"
-							value={config.plannerModel ?? "openai/gpt-5.5"}
-							onChange={(v) => onUpdate("plannerModel", v)}
-							hint="Agent 任务规划；转写/代回见下方 Fast Model"
-						/>
-						<Field
-							label="Fast Provider"
-							value={config.fastProvider ?? ""}
-							onChange={(v) => onUpdate("fastProvider", v)}
-							options={["", "openrouter", "openai", "anthropic", "dashscope", "deepseek", "moonshot"]}
-							hint="留空继承 Planner Provider"
-						/>
-						<Field
-							label="Fast Model"
-							value={config.fastModel ?? ""}
-							onChange={(v) => onUpdate("fastModel", v)}
-							hint="转写净化、代回草案。留空默认：OpenRouter→gemini-3.1-flash-lite，DashScope→qwen-flash"
-						/>
-						<Field
-							label="Zhipu API Key（OCR）"
-							type="password"
-							value={config.zhipuApiKey ?? ""}
-							onChange={(v) => onUpdate("zhipuApiKey", v)}
+							label="Zhipu OCR 模型"
+							value={config.zhipuOcrModel ?? ""}
+							onChange={(v) => onUpdate("zhipuOcrModel", v)}
+							hint="留空默认 glm-ocr"
 						/>
 						<Field
 							label="Mail Provider"

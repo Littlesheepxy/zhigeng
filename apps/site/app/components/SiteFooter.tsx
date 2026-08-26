@@ -1,11 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
+import { sourceUrl } from "../lib/site";
 
 const footerLinks = [
 	{ href: "/about", label: "关于知更" },
 	{ href: "/blog", label: "博客" },
 	{ href: "/pricing", label: "定价" },
-	{ href: "/beta", label: "申请内测码" },
+	{ href: "/#download", label: "下载 macOS" },
+	{ href: sourceUrl, label: "源码", external: true },
 	{ href: "/privacy", label: "隐私政策" },
 	{ href: "/terms", label: "用户协议" },
 ];
@@ -21,14 +23,24 @@ export function SiteFooter() {
 				<p>知你所言，才更懂你意。</p>
 			</div>
 			<nav aria-label="页脚导航">
-				{footerLinks.map((item) => (
-					<Link href={item.href} key={item.href}>
-						{item.label}
-					</Link>
-				))}
+				{footerLinks.map((item) =>
+					"external" in item && item.external ? (
+						<a href={item.href} key={item.href} target="_blank" rel="noreferrer">
+							{item.label}
+						</a>
+					) : (
+						<Link href={item.href} key={item.href}>
+							{item.label}
+						</Link>
+					),
+				)}
 			</nav>
 			<p className="zg-footer-meta">
-				© {new Date().getFullYear()} 知更 · 知你所言，才更懂你意 ·{" "}
+				© {new Date().getFullYear()} 知更 · 源码公开，
+				<a href={sourceUrl} target="_blank" rel="noreferrer">
+					PolyForm 非商用
+				</a>
+				{" · "}
 				<a href="mailto:hello@zhigeng.app">hello@zhigeng.app</a>
 			</p>
 		</footer>

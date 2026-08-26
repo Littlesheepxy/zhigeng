@@ -54,6 +54,12 @@ body {
 	transform: scaleX(1);
 }
 
+.zg-nav-source {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
 .zg-nav-cta,
 .zg-primary {
 	min-height: 48px;

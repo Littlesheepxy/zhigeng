@@ -12,6 +12,7 @@
     "site:build": "pnpm --filter @fold/site build",
     "asr:dev": "dotenv -c -- pnpm --filter @fold/asr-proxy dev",
     "desktop:dev": "dotenv -c -- pnpm --filter @fold/desktop rebuild:native && dotenv -c -- pnpm --parallel --filter @fold/asr-proxy --filter @fold/desktop dev",
+    "desktop:pack": "pnpm --filter @fold/desktop pack:mac",
     "e2e:smoke": "dotenv -c -- node scripts/ensure-better-sqlite3.mjs node && dotenv -c -- bash scripts/e2e-smoke.sh",
     "test:agent-stress": "dotenv -c -- node scripts/ensure-better-sqlite3.mjs node && dotenv -c -- tsx scripts/agent-stress/run.ts",
     "voice:hotword-pipeline": "dotenv -c -- tsx scripts/voice-hotword-pipeline.ts",
@@ -22,7 +23,7 @@
   },
   "packageManager": "pnpm@10.14.0",
   "pnpm": {
-    "onlyBuiltDependencies": ["@fold/macos-input", "better-sqlite3", "electron", "esbuild", "uiohook-napi", "@computer-use/nut-js"]
+    "onlyBuiltDependencies": ["@fold/macos-input", "better-sqlite3", "electron", "esbuild", "uiohook-napi", "@computer-use/nut-js", "sherpa-onnx-node"]
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

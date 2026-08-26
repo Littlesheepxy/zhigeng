@@ -45,8 +45,13 @@ interface FoldApi {
 		detail: string;
 		downloadSizeMb?: number;
 		trialRemaining?: number;
+		localEngine: "whisper" | "sensevoice";
+		whisperReady: boolean;
+		sensevoiceReady: boolean;
 	}>;
-	downloadVoicePack(): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
+	downloadVoicePack(
+		engine?: "whisper" | "sensevoice",
+	): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
 	getAsrRuntime(): Promise<{
 		provider: "mock" | "dashscope" | "local-whisper";
 		modelPath?: string;
@@ -150,6 +155,31 @@ interface FoldApi {
 		error?: string;
 	}>;
 	codexRemoteRevoke(clientId: string): Promise<{ ok: boolean; error?: string }>;
+	zhigengRemoteStatus(): Promise<{
+		configured: boolean;
+		deviceId: string | null;
+		state: "disabled" | "connecting" | "connected" | "error";
+		error: string | null;
+	}>;
+	zhigengRemotePairStart(): Promise<{
+		pairingId: string;
+		code: string;
+		qrPayload: string;
+		expiresAt: string;
+	}>;
+	zhigengRemotePairPoll(pairingId: string): Promise<{
+		status: "pending" | "claimed" | "expired" | "canceled";
+	}>;
+	zhigengRemoteDevices(): Promise<{
+		devices: Array<{
+			id: string;
+			kind: "mac" | "ios";
+			name: string;
+			lastSeenAt: string | null;
+			revokedAt: string | null;
+		}>;
+	}>;
+	zhigengRemoteRevoke(deviceId: string): Promise<{ ok: true }>;
 	getEpisode(id: string): Promise<EpisodeDetail | null>;
 	predictPickIntent(intent: string): Promise<{ ok: boolean }>;
 	predictInsertDraft(text: string): Promise<{ ok: boolean; pasted: boolean; error?: string }>;
@@ -213,6 +243,9 @@ interface FoldApi {
 	openExternal(url: string): Promise<{ ok: boolean }>;
 	openDataDir(): Promise<{ ok: boolean; path?: string; error?: string }>;
 	saveConfig(config: FoldConfig): Promise<{ ok: boolean }>;
+	testLlm(
+		role?: "planner" | "fast",
+	): Promise<{ ok: true; provider: string; model: string } | { ok: false; error: string }>;
 	accountGetState(): Promise<{
 		signedIn: boolean;
 		email?: string;

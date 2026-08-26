@@ -8,6 +8,7 @@ import {
 	ahaProactiveTierFor,
 	decideAhaProactiveShow,
 	hasPlannerApiKey,
+	probeLlm,
 	buildWeeklyRecap,
 	markWeeklyRecapShown,
 	recallHabitsFromUsage,
@@ -124,6 +125,17 @@ import {
 	shutdownCodexAppServer,
 	startCodexRemotePairing,
 } from "./codex-remote-control.js";
+import {
+	configureRemoteRelay,
+	forwardRemoteState,
+	getRemoteRelayStatus,
+	listRemoteDevices,
+	pollRemotePairing,
+	revokeRemoteDevice,
+	startRemotePairing,
+	startRemoteRelay,
+	stopRemoteRelay,
+} from "./remote-relay-client.js";
 import { PRODUCT_NAME } from "./brand.js";
 import {
 	FileInteractionStore,
@@ -133,13 +145,16 @@ import {
 } from "./interaction-broker.js";
 import { createZhigengAppIcon } from "./tray-icon.js";
 import {
-	appendLocalWhisperAudio,
-	cancelLocalWhisperSession,
-	finishLocalWhisperSession,
+	appendLocalAsrAudio,
+	cancelLocalAsrSession,
+	finishLocalAsrSession,
+	hasSelectedLocalModel,
+	resolveLocalEngine,
+	startLocalAsrSession,
+} from "./local-asr.js";
+import {
 	getDefaultLocalModelPath,
-	hasLocalWhisperModel,
 	resolveLocalModelPath,
-	startLocalWhisperSession,
 } from "./local-whisper.js";
 import {
 	downloadVoicePack,
@@ -359,6 +374,7 @@ let lastUndoReceipt: UndoReceipt | null = null;
 
 function emitState(state: FoldStateEvent) {
 	lastOverlayState = { ...lastOverlayState, ...state };
+	forwardRemoteState(state);
 	if (!overlayWindow || overlayWindow.isDestroyed()) {
 		createOverlayWindow();
 		return;
@@ -1518,6 +1534,7 @@ async function replyVoiceTranscript(transcript: string) {
 const IPC_HANDLE_CHANNELS = [
 	"fold:get-config",
 	"fold:save-config",
+	"fold:test-llm",
 	"fold:get-mock-asr",
 	"fold:get-asr-runtime",
 	"fold:get-voice-setup",
@@ -1604,16 +1621,22 @@ function isValidHotkeyPreset(action: HotkeyAction, presetId: string): boolean {
 function resolveAsrRuntime() {
 	const config = loadConfig();
 	const requested = config.asrProvider ?? "auto";
+	const engine = resolveLocalEngine(config);
 	const modelPath =
 		config.localWhisperModelPath ?? getDefaultLocalModelPath();
 	const resolvedModelPath = resolveLocalModelPath(modelPath);
-	const hasLocal = hasLocalWhisperModel(modelPath);
+	const hasLocal = hasSelectedLocalModel(config);
 	const hasCloud = hasRealAsr(config);
 	const tier = resolveEntitlements(config.planTier);
 	const smartAccess = resolveSmartActionAccess(config);
 
 	if (requested === "local-whisper" || requested === "local-funasr") {
-		return { provider: "local-whisper" as const, modelPath: resolvedModelPath, ready: hasLocal };
+		return {
+			provider: "local-whisper" as const,
+			engine,
+			modelPath: engine === "whisper" ? resolvedModelPath : undefined,
+			ready: hasLocal,
+		};
 	}
 	if (requested === "dashscope") {
 		return {
@@ -1630,9 +1653,19 @@ function resolveAsrRuntime() {
 	}
 	// 免费版：仅本地语音包
 	if (hasLocal) {
-		return { provider: "local-whisper" as const, modelPath: resolvedModelPath, ready: true };
+		return {
+			provider: "local-whisper" as const,
+			engine,
+			modelPath: engine === "whisper" ? resolvedModelPath : undefined,
+			ready: true,
+		};
 	}
-	return { provider: "local-whisper" as const, modelPath: resolvedModelPath, ready: false };
+	return {
+		provider: "local-whisper" as const,
+		engine,
+		modelPath: engine === "whisper" ? resolvedModelPath : undefined,
+		ready: false,
+	};
 }
 
 function registerIpc() {
@@ -1646,6 +1679,11 @@ function registerIpc() {
 		saveConfig(config);
 		applyConfigToEnv(config);
 		return { ok: true };
+	});
+
+	ipcMain.handle("fold:test-llm", async (_e, role: "planner" | "fast" = "planner") => {
+		applyConfigToEnv();
+		return probeLlm(role === "fast" ? "fast" : "planner");
 	});
 
 	ipcMain.handle("fold:account-get-state", () => getAccountState());
@@ -1690,7 +1728,9 @@ function registerIpc() {
 
 	ipcMain.handle("fold:get-voice-setup", () => getVoiceSetupStatus());
 
-	ipcMain.handle("fold:download-voice-pack", () => downloadVoicePack());
+	ipcMain.handle("fold:download-voice-pack", (_e, engine?: "whisper" | "sensevoice") =>
+		downloadVoicePack(engine),
+	);
 
 	ipcMain.handle("fold:get-asr-runtime", () => {
 		const runtime = resolveAsrRuntime();
@@ -1700,24 +1740,19 @@ function registerIpc() {
 	});
 
 	ipcMain.handle("fold:local-asr-start", () => {
-		startLocalWhisperSession();
+		startLocalAsrSession();
 		return { ok: true };
 	});
 
 	ipcMain.removeAllListeners("fold:local-asr-audio");
 	ipcMain.on("fold:local-asr-audio", (_event, chunk: ArrayBuffer | Uint8Array) => {
-		appendLocalWhisperAudio(chunk);
+		appendLocalAsrAudio(chunk);
 	});
 
-	ipcMain.handle("fold:local-asr-finish", async () => {
-		const config = loadConfig();
-		return finishLocalWhisperSession(
-			resolveLocalModelPath(config.localWhisperModelPath),
-		);
-	});
+	ipcMain.handle("fold:local-asr-finish", async () => finishLocalAsrSession());
 
 	ipcMain.handle("fold:local-asr-cancel", () => {
-		cancelLocalWhisperSession();
+		cancelLocalAsrSession();
 		return { ok: true };
 	});
 
@@ -1886,6 +1921,15 @@ function registerIpc() {
 	ipcMain.handle("fold:codex-remote-clients", () => listCodexRemoteClients());
 	ipcMain.handle("fold:codex-remote-revoke", (_e, clientId: string) =>
 		revokeCodexRemoteClient(clientId),
+	);
+	ipcMain.handle("fold:zhigeng-remote-status", () => getRemoteRelayStatus());
+	ipcMain.handle("fold:zhigeng-remote-pair-start", () => startRemotePairing());
+	ipcMain.handle("fold:zhigeng-remote-pair-poll", (_e, pairingId: string) =>
+		pollRemotePairing(pairingId),
+	);
+	ipcMain.handle("fold:zhigeng-remote-devices", () => listRemoteDevices());
+	ipcMain.handle("fold:zhigeng-remote-revoke", (_e, deviceId: string) =>
+		revokeRemoteDevice(deviceId),
 	);
 
 	ipcMain.handle("fold:get-episode", (_e, id: string) => {
@@ -2751,6 +2795,8 @@ app.whenReady().then(() => {
 
 	contextEngine.start();
 	hydrateContextFromDb();
+	configureRemoteRelay({ executeTask, handleInteractionResponse });
+	startRemoteRelay();
 	stopHabitRecall = startHabitRecallLoop(() => recallHabitsFromUsage());
 	startMemoryConsolidationLoop();
 	const restoredInteraction = ensureInteractionBroker().current();
@@ -2843,6 +2889,7 @@ app.on("will-quit", () => {
 	stopHotkey?.();
 	stopHabitRecall?.();
 	stopMemoryConsolidationLoop();
+	stopRemoteRelay();
 	void shutdownCodexAppServer();
 	contextEngine.stop();
 });

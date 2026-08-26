@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Check } from "lucide-react";
 import { PageIntro } from "../components/PageSections";
+import { macDownloadFilename, macDownloadUrl } from "../lib/site";
 
 export const metadata: Metadata = {
 	title: "定价",
-	description: "知更 macOS 版本内测计划与个人版权益。",
+	description: "知更 macOS 个人版：先下载用起来，再谈更多。",
 	alternates: { canonical: "/pricing" },
 };
 
@@ -19,8 +19,8 @@ const benefits = [
 
 const faqs = [
 	{
-		question: "现在如何参与内测？",
-		answer: "在网站申请内测码。我们分批审核，通过后会把内测码与安装方式发到你的邮箱。",
+		question: "现在怎么安装？",
+		answer: "打开 zhigeng.app 下载 macOS Apple Silicon 安装包。已签名公证，下载后直接打开。",
 	},
 	{
 		question: "是否需要一直联网？",
@@ -53,13 +53,13 @@ export default function PricingPage() {
 				dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
 			/>
 			<PageIntro eyebrow="定价" title="先真正帮你省下时间，再谈更多。">
-				<p>macOS 个人版正在内测。首批用户可以完整体验知更的输入、代回、执行与本地记忆。</p>
+				<p>macOS 个人版可直接下载。先把输入、代回、执行和本地记忆用起来。</p>
 			</PageIntro>
 
 			<section className="zg-price-card">
 				<div>
 					<span>个人版 · macOS</span>
-					<h2>内测开放中</h2>
+					<h2>现在可下载</h2>
 					<p>面向每天需要写消息、邮件、文档，也希望少做重复操作的人。</p>
 				</div>
 				<ul>
@@ -70,9 +70,9 @@ export default function PricingPage() {
 						</li>
 					))}
 				</ul>
-				<Link className="zg-primary" href="/beta">
-					申请内测码
-				</Link>
+				<a className="zg-primary" href={macDownloadUrl} download={macDownloadFilename}>
+					下载 macOS
+				</a>
 			</section>
 
 			<section className="zg-faq">

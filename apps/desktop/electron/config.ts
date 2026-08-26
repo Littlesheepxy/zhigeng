@@ -12,7 +12,14 @@ import {
 	type PlanTier,
 } from "@fold/runtime";
 import { resolveDataDir } from "./data-dir.js";
-import { loadAccountSecret } from "./secure-store.js";
+import { loadAccountSecret, loadLlmSecretsJson, saveLlmSecretsJson } from "./secure-store.js";
+import {
+	applyLlmSecretsToEnv,
+	extractLlmSecrets,
+	stripLlmSecrets,
+	upsertLlmSecrets,
+	type LlmSecretBag,
+} from "./llm-secrets.js";
 
 export type AsrProvider = "auto" | "local-funasr" | "local-whisper" | "dashscope";
 
@@ -20,18 +27,25 @@ export interface FoldConfig {
 	planTier?: PlanTier;
 	asrProvider?: AsrProvider;
 	localWhisperModelPath?: string;
+	/** 离线引擎：阿里 SenseVoice 或 Whisper；auto 回退本地时用这个 */
+	localAsrEngine?: "whisper" | "sensevoice";
 	trialSmartActionsRemaining?: number;
 	byokOverrides?: boolean;
 	dashscopeApiKey?: string;
 	openrouterApiKey?: string;
 	openaiApiKey?: string;
+	anthropicApiKey?: string;
+	deepseekApiKey?: string;
+	moonshotApiKey?: string;
 	zhipuApiKey?: string;
 	zhipuOcrModel?: string;
 	plannerProvider?: string;
 	plannerModel?: string;
+	plannerBaseUrl?: string;
 	/** 转写净化、代回草案；留空则用各 Provider 默认快模型 */
 	fastProvider?: string;
 	fastModel?: string;
+	fastBaseUrl?: string;
 	mailProvider?: string;
 	nangoSecretKey?: string;
 	hubApiKey?: string;
@@ -96,46 +110,81 @@ export function getConfigPath(): string {
 	return configPath();
 }
 
+function readStoredLlmSecrets(): LlmSecretBag {
+	const raw = loadLlmSecretsJson();
+	if (!raw) return {};
+	try {
+		const parsed = JSON.parse(raw) as LlmSecretBag;
+		return parsed && typeof parsed === "object" ? parsed : {};
+	} catch {
+		return {};
+	}
+}
+
+function persistLlmSecrets(secrets: LlmSecretBag): void {
+	saveLlmSecretsJson(JSON.stringify(secrets));
+}
+
+function withLlmSecrets(config: FoldConfig): FoldConfig {
+	return { ...config, ...readStoredLlmSecrets() };
+}
+
 export function loadConfig(): FoldConfig {
 	const path = configPath();
 	try {
 		if (!existsSync(path)) {
-			return {
+			return withLlmSecrets({
 				planTier: "free",
 				asrProvider: "auto",
 				executionMode: "auto",
 				trialSmartActionsRemaining: INITIAL_TRIAL_SMART_ACTIONS,
-			};
+			});
 		}
 		const config = JSON.parse(readFileSync(path, "utf8")) as FoldConfig;
-		return {
+		const fromFile = extractLlmSecrets(config as unknown as Record<string, unknown>);
+		if (Object.keys(fromFile).length > 0) {
+			persistLlmSecrets(upsertLlmSecrets(readStoredLlmSecrets(), fromFile));
+			const stripped = stripLlmSecrets(config as unknown as Record<string, unknown>) as FoldConfig;
+			writeFileSync(path, JSON.stringify({
+				...stripped,
+				planTier: normalizePlanTier(stripped.planTier),
+				asrProvider: stripped.asrProvider ?? "auto",
+			}, null, 2), "utf8");
+		}
+		return withLlmSecrets({
 			...config,
 			planTier: normalizePlanTier(config.planTier),
 			asrProvider: config.asrProvider ?? "auto",
 			trialSmartActionsRemaining: remainingTrialSmartActions(
 				config.trialSmartActionsRemaining,
 			),
-		};
+		});
 	} catch {
-		return {
+		return withLlmSecrets({
 			planTier: "free",
 			asrProvider: "auto",
 			trialSmartActionsRemaining: INITIAL_TRIAL_SMART_ACTIONS,
-		};
+		});
 	}
 }
 
 export function saveConfig(config: FoldConfig): void {
 	const dir = configDir();
 	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-	const normalized: FoldConfig = {
+	persistLlmSecrets(
+		upsertLlmSecrets(
+			readStoredLlmSecrets(),
+			extractLlmSecrets(config as unknown as Record<string, unknown>),
+		),
+	);
+	const normalized = stripLlmSecrets({
 		...config,
 		planTier: normalizePlanTier(config.planTier),
 		asrProvider: config.asrProvider ?? "auto",
 		trialSmartActionsRemaining: remainingTrialSmartActions(
 			config.trialSmartActionsRemaining,
 		),
-	};
+	} as unknown as Record<string, unknown>) as FoldConfig;
 	writeFileSync(configPath(), JSON.stringify(normalized, null, 2), "utf8");
 }
 
@@ -159,10 +208,7 @@ export function applyConfigToEnv(config: FoldConfig = loadConfig()): void {
 	process.env.FOLD_TRIAL_SMART_ACTIONS_REMAINING = String(
 		remainingTrialSmartActions(config.trialSmartActionsRemaining),
 	);
-	if (config.dashscopeApiKey) process.env.DASHSCOPE_API_KEY = config.dashscopeApiKey;
-	if (config.openrouterApiKey) process.env.OPENROUTER_API_KEY = config.openrouterApiKey;
-	if (config.openaiApiKey) process.env.OPENAI_API_KEY = config.openaiApiKey;
-	if (config.zhipuApiKey) process.env.ZHIPU_API_KEY = config.zhipuApiKey;
+	applyLlmSecretsToEnv(config);
 	if (config.zhipuOcrModel) process.env.ZHIPU_OCR_MODEL = config.zhipuOcrModel;
 	if (config.plannerProvider) process.env.FOLD_PLANNER_PROVIDER = config.plannerProvider;
 	if (config.plannerModel) process.env.FOLD_PLANNER_MODEL = config.plannerModel;

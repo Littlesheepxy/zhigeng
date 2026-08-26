@@ -6,11 +6,13 @@ import {
 } from "../components/OnboardingShell";
 
 type VoiceChoice = "smart" | "local";
+type LocalEngine = "whisper" | "sensevoice";
 
 export function VoicePackStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
 	const [setup, setSetup] = useState<Awaited<ReturnType<typeof window.fold.getVoiceSetup>> | null>(null);
 	const [config, setConfig] = useState<Awaited<ReturnType<typeof window.fold.getConfig>> | null>(null);
 	const [choice, setChoice] = useState<VoiceChoice>("smart");
+	const [localEngine, setLocalEngine] = useState<LocalEngine>("sensevoice");
 	const [downloading, setDownloading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -25,6 +27,9 @@ export function VoicePackStep({ onNext, onBack }: { onNext: () => void; onBack: 
 				const smartAvailable =
 					nextSetup.planTier !== "free" || (nextSetup.trialRemaining ?? 0) > 0;
 				setChoice(localSelected || !smartAvailable ? "local" : "smart");
+				if (nextConfig.localAsrEngine === "whisper" || nextConfig.asrProvider === "local-whisper") {
+					setLocalEngine("whisper");
+				}
 			},
 		);
 	}, []);
@@ -51,17 +56,23 @@ export function VoicePackStep({ onNext, onBack }: { onNext: () => void; onBack: 
 		if (!config) return;
 		setDownloading(true);
 		setError(null);
-		const nextConfig = { ...config, asrProvider: "local-whisper" as const };
+		const nextConfig = {
+			...config,
+			asrProvider: localEngine === "whisper" ? ("local-whisper" as const) : ("local-funasr" as const),
+			localAsrEngine: localEngine,
+		};
 		await window.fold.saveConfig(nextConfig);
 		setConfig(nextConfig);
 		const localSetup = await window.fold.getVoiceSetup();
-		if (localSetup.ready) {
+		const alreadyReady =
+			localEngine === "whisper" ? localSetup.whisperReady : localSetup.sensevoiceReady;
+		if (alreadyReady) {
 			setSetup(localSetup);
 			setDownloading(false);
 			onNext();
 			return;
 		}
-		const result = await window.fold.downloadVoicePack();
+		const result = await window.fold.downloadVoicePack(localEngine);
 		setDownloading(false);
 		if (!result.ok) {
 			setError(result.error);
@@ -124,7 +135,9 @@ export function VoicePackStep({ onNext, onBack }: { onNext: () => void; onBack: 
 							<span className="fold-onboarding-voice-option-icon is-local"><ShieldCheck size={17} /></span>
 							<div>
 								<strong>离线基础转写</strong>
-								<small>免费长期使用 · 约 {setup?.downloadSizeMb ?? 470}MB</small>
+								<small>
+									免费长期使用 · 约 {localEngine === "whisper" ? 470 : 230}MB
+								</small>
 							</div>
 							<span className="fold-onboarding-voice-radio">{choice === "local" ? <Check size={13} /> : null}</span>
 						</div>
@@ -135,6 +148,26 @@ export function VoicePackStep({ onNext, onBack }: { onNext: () => void; onBack: 
 						</div>
 						<p>不包含智能整理、场景理解和智能代回。</p>
 					</button>
+					{choice === "local" ? (
+						<div className="fold-onboarding-voice-engines">
+							<button
+								type="button"
+								className={`fold-onboarding-voice-engine${localEngine === "sensevoice" ? " is-selected" : ""}`}
+								onClick={() => setLocalEngine("sensevoice")}
+							>
+								<strong>阿里 SenseVoice</strong>
+								<span>中文更准 · 约 230MB</span>
+							</button>
+							<button
+								type="button"
+								className={`fold-onboarding-voice-engine${localEngine === "whisper" ? " is-selected" : ""}`}
+								onClick={() => setLocalEngine("whisper")}
+							>
+								<strong>Whisper</strong>
+								<span>多语种 · 约 470MB</span>
+							</button>
+						</div>
+					) : null}
 
 					<p className="fold-onboarding-voice-switch-note">
 						之后可随时在「设置 → 语音输入」中切换。

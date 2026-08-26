@@ -5,9 +5,15 @@ import { pipeline } from "node:stream/promises";
 import { remainingTrialSmartActions, resolveEntitlements } from "@fold/runtime";
 import { loadConfig, saveConfig, applyConfigToEnv } from "./config.js";
 import {
+	downloadSizeMbFor,
+	hasSelectedLocalModel,
+	resolveLocalEngine,
+	type LocalAsrEngine,
+} from "./local-asr.js";
+import { downloadSenseVoicePack } from "./local-sensevoice.js";
+import {
 	getDefaultLocalModelPath,
 	hasLocalWhisperModel,
-	LOCAL_VOICE_MODEL_SIZE_MB,
 	resolveLocalModelPath,
 } from "./local-whisper.js";
 
@@ -24,6 +30,9 @@ export interface VoiceSetupStatus {
 	detail: string;
 	downloadSizeMb?: number;
 	trialRemaining?: number;
+	localEngine: LocalAsrEngine;
+	whisperReady: boolean;
+	sensevoiceReady: boolean;
 }
 
 export function shouldUseSmartVoice(
@@ -38,45 +47,59 @@ export function shouldUseSmartVoice(
 export function getVoiceSetupStatus(): VoiceSetupStatus {
 	const config = loadConfig();
 	const tier = resolveEntitlements(config.planTier);
-	const hasLocal = hasLocalWhisperModel(config.localWhisperModelPath);
+	const localEngine = resolveLocalEngine(config);
+	const whisperReady = hasLocalWhisperModel(config.localWhisperModelPath);
+	const sensevoiceReady = hasSelectedLocalModel({ ...config, localAsrEngine: "sensevoice" });
+	const hasLocal = hasSelectedLocalModel(config);
 	const trialRemaining = remainingTrialSmartActions(config.trialSmartActionsRemaining);
+	const base = {
+		planTier: tier.tier,
+		trialRemaining,
+		localEngine,
+		whisperReady,
+		sensevoiceReady,
+	};
 
 	if (shouldUseSmartVoice(config.asrProvider, tier.cloudAsr, trialRemaining > 0)) {
 		return {
-			planTier: tier.tier,
+			...base,
 			mode: "cloud",
 			ready: true,
 			title: "知更智能转写",
 			detail: tier.cloudAsr
 				? "Pro 已包含场景理解、改口整理与专有名词增强。"
 				: `可免费体验 ${trialRemaining} 次场景理解、改口整理与智能代回。`,
-			trialRemaining,
 		};
 	}
 
 	if (hasLocal) {
 		return {
-			planTier: tier.tier,
+			...base,
 			mode: "local",
 			ready: true,
 			title: "本地语音已就绪",
-			detail: "语音在设备本地识别，不上传云端，随时可用。",
-			trialRemaining,
+			detail:
+				localEngine === "sensevoice"
+					? "阿里 SenseVoice 在设备本地识别，中文更准，不上传云端。"
+					: "Whisper 在设备本地识别，不上传云端，随时可用。",
 		};
 	}
 
+	const downloadSizeMb = downloadSizeMbFor(localEngine);
 	return {
-		planTier: tier.tier,
+		...base,
 		mode: "download-needed",
 		ready: false,
 		title: "需要下载离线语音包",
-		detail: `下载一次即可离线使用基础转写，约 ${LOCAL_VOICE_MODEL_SIZE_MB} MB。`,
-		downloadSizeMb: LOCAL_VOICE_MODEL_SIZE_MB,
-		trialRemaining,
+		detail:
+			localEngine === "sensevoice"
+				? `下载阿里开源 SenseVoice，约 ${downloadSizeMb} MB，中文离线识别更准。`
+				: `下载 Whisper 离线包，约 ${downloadSizeMb} MB。`,
+		downloadSizeMb,
 	};
 }
 
-export async function downloadVoicePack(): Promise<
+async function downloadWhisperPack(): Promise<
 	{ ok: true; path: string } | { ok: false; error: string }
 > {
 	const config = loadConfig();
@@ -94,16 +117,32 @@ export async function downloadVoicePack(): Promise<
 		if (!hasLocalWhisperModel(config.localWhisperModelPath)) {
 			return { ok: false, error: "下载完成但文件校验失败，请重试。" };
 		}
-		if (!config.localWhisperModelPath) {
-			const next = {
-				...config,
-				localWhisperModelPath: getDefaultLocalModelPath(),
-			};
-			saveConfig(next);
-			applyConfigToEnv(next);
-		}
+		const next = {
+			...config,
+			localAsrEngine: "whisper" as const,
+			localWhisperModelPath: config.localWhisperModelPath ?? getDefaultLocalModelPath(),
+		};
+		saveConfig(next);
+		applyConfigToEnv(next);
 		return { ok: true, path: targetPath };
 	} catch (error) {
 		return { ok: false, error: error instanceof Error ? error.message : String(error) };
 	}
+}
+
+export async function downloadVoicePack(
+	engine?: LocalAsrEngine,
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+	const config = loadConfig();
+	const selected = engine ?? resolveLocalEngine(config);
+	if (selected === "sensevoice") {
+		const result = await downloadSenseVoicePack();
+		if (result.ok) {
+			const next = { ...loadConfig(), localAsrEngine: "sensevoice" as const };
+			saveConfig(next);
+			applyConfigToEnv(next);
+		}
+		return result;
+	}
+	return downloadWhisperPack();
 }

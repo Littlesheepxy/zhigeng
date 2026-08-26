@@ -4,6 +4,7 @@ import { ConnectFlowModal, type ConnectFlowTarget } from "../components/ConnectF
 import { CapabilityGroup, ChannelChipGrid } from "../components/ChannelChipGrid.js";
 import { ConnectionIcon, CONNECTION_CHIP_ICON_SIZE } from "../components/ConnectionIcon.js";
 import { CodexRemoteControlPanel } from "../components/CodexRemoteControlPanel.js";
+import { ZhigengRemotePanel } from "../components/ZhigengRemotePanel.js";
 import { IosSwitch, StatusDot } from "../components/FormFields.js";
 
 /** iOS Codex 客户端就绪后改为 true */
@@ -207,6 +208,7 @@ export function ConnectionsSection({
 			</div>
 
 			{CODEX_REMOTE_CONTROL_UI_ENABLED ? <CodexRemoteControlPanel /> : null}
+			<ZhigengRemotePanel />
 
 			<section className="fold-execution-mode-grid" aria-label="执行模式">
 				{MODE_OPTIONS.map((opt) => (

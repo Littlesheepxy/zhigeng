@@ -58,6 +58,20 @@ export function startLocalWhisperSession(): void {
 	pcmChunks = [];
 }
 
+export function takeLocalPcmf32(): Float32Array {
+	const sampleCount = pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
+	const pcm = new Float32Array(sampleCount);
+	let offset = 0;
+	for (const chunk of pcmChunks) {
+		for (let i = 0; i < chunk.length; i += 1) {
+			pcm[offset + i] = chunk[i] / 32768;
+		}
+		offset += chunk.length;
+	}
+	pcmChunks = [];
+	return pcm;
+}
+
 export function appendLocalWhisperAudio(chunk: ArrayBuffer | Uint8Array): void {
 	const bytes =
 		chunk instanceof Uint8Array
@@ -81,7 +95,11 @@ function transcriptionText(transcription: unknown): string {
 		.trim();
 }
 
-export async function finishLocalWhisperSession(modelPath?: string): Promise<string> {
+export async function transcribeLocalWhisper(
+	pcm: Float32Array,
+	modelPath?: string,
+): Promise<string> {
+	if (!pcm.length) return "";
 	if (!modelPath?.trim()) {
 		throw new Error("请先在设置中下载语音包。");
 	}
@@ -89,17 +107,6 @@ export async function finishLocalWhisperSession(modelPath?: string): Promise<str
 	if (!existsSync(resolvedModel)) {
 		throw new Error("语音包尚未下载。请打开设置，下载后即可使用本地语音识别。");
 	}
-	const sampleCount = pcmChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-	if (!sampleCount) return "";
-	const pcm = new Float32Array(sampleCount);
-	let offset = 0;
-	for (const chunk of pcmChunks) {
-		for (let i = 0; i < chunk.length; i += 1) {
-			pcm[offset + i] = chunk[i] / 32768;
-		}
-		offset += chunk.length;
-	}
-	pcmChunks = [];
 
 	const next = transcribeChain.then(async () => {
 		const transcribe = getWhisperTranscribe();
@@ -116,6 +123,10 @@ export async function finishLocalWhisperSession(modelPath?: string): Promise<str
 	});
 	transcribeChain = next.catch(() => undefined);
 	return next as Promise<string>;
+}
+
+export async function finishLocalWhisperSession(modelPath?: string): Promise<string> {
+	return transcribeLocalWhisper(takeLocalPcmf32(), modelPath);
 }
 
 export function cancelLocalWhisperSession(): void {

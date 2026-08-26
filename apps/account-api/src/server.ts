@@ -24,8 +24,31 @@ import {
 	cancelUserSubscriptions,
 	listUserPurchases,
 } from "./payments.js";
+import {
+	claimPairing,
+	createRemoteThread,
+	createRemoteTurn,
+	getPairingStatus,
+	getRemoteApproval,
+	getRemoteThread,
+	getRemoteTurn,
+	listDevices,
+	listRemoteThreads,
+	respondToRemoteApproval,
+	revokeDevice,
+	startPairing,
+} from "./remote-store.js";
+import {
+	attachRemoteRelay,
+	canSendApprovalToMac,
+	disconnectRemoteDevice,
+	dispatchRemoteTurn,
+	isRemoteMacOnline,
+	sendApprovalToMac,
+} from "./remote-relay.js";
 import { createStripeCheckoutSession, handleStripeWebhook, stripeLiveEnabled } from "./stripe.js";
 import { consumeUsage, getEntitlements, recordCost } from "./usage-ledger.js";
+import { readVolcAsrConfig } from "./volc-asr.js";
 
 const PORT = Number(process.env.ACCOUNT_API_PORT ?? 3010);
 
@@ -42,6 +65,19 @@ app.get("/health", (c) =>
 
 function requireUser(c: { req: { header: (name: string) => string | undefined } }) {
 	return resolveUserFromBearer(c.req.header("Authorization"));
+}
+
+function remoteErrorStatus(error: unknown): 400 | 403 | 404 | 409 | 500 {
+	const code = error instanceof Error ? error.message : "failed";
+	if (code === "forbidden") return 403;
+	if (code === "not_found") return 404;
+	if (code === "conflict" || code === "expired") return 409;
+	if (code.endsWith("_required")) return 400;
+	return 500;
+}
+
+function remoteErrorCode(error: unknown): string {
+	return error instanceof Error ? error.message : "failed";
 }
 
 app.post("/auth/request-code", async (c) => {
@@ -108,6 +144,188 @@ app.delete("/me", (c) => {
 	revokeBearer(c.req.header("Authorization"));
 	deleteUser(user.id);
 	return c.json({ ok: true });
+});
+
+app.post("/devices/pairing/start", async (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	const body = await c.req
+		.json<{ deviceName?: string; publicUrl?: string }>()
+		.catch(() => ({} as { deviceName?: string; publicUrl?: string }));
+	try {
+		return c.json(
+			startPairing({
+				userId: user.id,
+				deviceName: body.deviceName ?? "Mac",
+				publicUrl:
+					body.publicUrl ??
+					process.env.ACCOUNT_PUBLIC_URL?.trim() ??
+					`http://127.0.0.1:${PORT}`,
+			}),
+		);
+	} catch (error) {
+		return c.json({ error: remoteErrorCode(error) }, remoteErrorStatus(error));
+	}
+});
+
+app.post("/devices/pairing/claim", async (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	const body = await c.req
+		.json<{ pairingId?: string; code?: string; deviceName?: string }>()
+		.catch(
+			() => ({} as { pairingId?: string; code?: string; deviceName?: string }),
+		);
+	if (!body.pairingId || !body.code) return c.json({ error: "invalid_body" }, 400);
+	try {
+		return c.json(
+			claimPairing({
+				userId: user.id,
+				pairingId: body.pairingId,
+				code: body.code,
+				deviceName: body.deviceName ?? "iPhone",
+			}),
+		);
+	} catch (error) {
+		return c.json({ error: remoteErrorCode(error) }, remoteErrorStatus(error));
+	}
+});
+
+app.get("/devices/pairing/:id/status", (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	const pairing = getPairingStatus(user.id, c.req.param("id"));
+	return pairing ? c.json(pairing) : c.json({ error: "not_found" }, 404);
+});
+
+app.get("/devices", (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	return c.json({ devices: listDevices(user.id) });
+});
+
+app.delete("/devices/:id", (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	try {
+		const deviceId = c.req.param("id");
+		revokeDevice(user.id, deviceId);
+		disconnectRemoteDevice(deviceId);
+		return c.json({ ok: true });
+	} catch (error) {
+		return c.json({ error: remoteErrorCode(error) }, remoteErrorStatus(error));
+	}
+});
+
+app.post("/remote/threads", async (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	const body = await c.req
+		.json<{ title?: string; clientRequestId?: string }>()
+		.catch(() => ({} as { title?: string; clientRequestId?: string }));
+	if (!body.clientRequestId) return c.json({ error: "client_request_id_required" }, 400);
+	try {
+		return c.json(
+			createRemoteThread({
+				userId: user.id,
+				title: body.title ?? "新任务",
+				clientRequestId: body.clientRequestId,
+			}),
+		);
+	} catch (error) {
+		return c.json({ error: remoteErrorCode(error) }, remoteErrorStatus(error));
+	}
+});
+
+app.get("/remote/threads", (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	return c.json({ threads: listRemoteThreads(user.id) });
+});
+
+app.get("/remote/threads/:id", (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	const thread = getRemoteThread(user.id, c.req.param("id"));
+	return thread ? c.json(thread) : c.json({ error: "not_found" }, 404);
+});
+
+app.post("/remote/threads/:id/turns", async (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	const body = await c.req
+		.json<{ content?: string; clientRequestId?: string }>()
+		.catch(() => ({} as { content?: string; clientRequestId?: string }));
+	if (!body.clientRequestId || !body.content) return c.json({ error: "invalid_body" }, 400);
+	try {
+		const turn = createRemoteTurn({
+			userId: user.id,
+			threadId: c.req.param("id"),
+			clientRequestId: body.clientRequestId,
+			content: body.content,
+		});
+		if (!dispatchRemoteTurn({ userId: user.id, turn })) {
+			return c.json(
+				{ error: isRemoteMacOnline(user.id) ? "mac_busy" : "mac_offline", turn },
+				409,
+			);
+		}
+		return c.json(turn);
+	} catch (error) {
+		return c.json({ error: remoteErrorCode(error) }, remoteErrorStatus(error));
+	}
+});
+
+app.get("/remote/turns/:id", (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	const turn = getRemoteTurn(user.id, c.req.param("id"));
+	return turn ? c.json(turn) : c.json({ error: "not_found" }, 404);
+});
+
+app.post("/remote/approvals/:id/respond", async (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	const body = await c.req
+		.json<{ decision?: string; optionId?: string; text?: string; modality?: string }>()
+		.catch(
+			() =>
+				({} as {
+					decision?: string;
+					optionId?: string;
+					text?: string;
+					modality?: string;
+				}),
+		);
+	const decision = body.decision ?? body.optionId ?? (body.text?.trim() ? "answered" : "");
+	if (!decision) return c.json({ error: "response_required" }, 400);
+	try {
+		const approvalId = c.req.param("id");
+		const pending = getRemoteApproval(user.id, approvalId);
+		if (!pending) return c.json({ error: "not_found" }, 404);
+		if (!canSendApprovalToMac(user.id, pending.turnId)) {
+			return c.json({ error: "mac_offline" }, 409);
+		}
+		const approval = respondToRemoteApproval({
+			userId: user.id,
+			approvalId,
+			decision,
+			response: body,
+		});
+		if (
+			!sendApprovalToMac({
+				userId: user.id,
+				turnId: approval.turnId,
+				approvalId: approval.id,
+				response: body,
+			})
+		) {
+			return c.json({ error: "mac_offline", approval }, 409);
+		}
+		return c.json(approval);
+	} catch (error) {
+		return c.json({ error: remoteErrorCode(error) }, remoteErrorStatus(error));
+	}
 });
 
 app.get("/billing/entitlements", (c) => {
@@ -252,6 +470,16 @@ app.post("/billing/cancel", (c) => {
 	return c.json({ ok: true, entitlements: getEntitlements(user.id) });
 });
 
+app.get("/asr/volc-token", (c) => {
+	const user = requireUser(c);
+	if (!user) return c.json({ error: "unauthorized" }, 401);
+	const config = readVolcAsrConfig();
+	if (!config) {
+		return c.json({ error: "volc_asr_not_configured" }, 503);
+	}
+	return c.json(config);
+});
+
 app.get("/billing/products", (c) => {
 	const ids = resolveCnProductIds();
 	return c.json({
@@ -323,6 +551,8 @@ const server = createServer(async (req, res) => {
 		res.end(JSON.stringify({ error: "internal" }));
 	}
 });
+
+attachRemoteRelay(server);
 
 server.listen(PORT, () => {
 	console.log(`[account-api] listening on :${PORT}`);

@@ -251,7 +251,7 @@ export function ProfileSection({
 						<ArrowLeft size={15} /> 返回记忆
 					</button>
 					<h2>事</h2>
-					<p>从真实任务记录中整理行动习惯、待跟进事项和近期经历。</p>
+					<p>正在推进的项目、待跟进事项和近期经历。</p>
 				</div>
 
 				<section className="fold-memory-subpage">
@@ -441,7 +441,7 @@ export function ProfileSection({
 					<div className="fold-memory-card-head">
 						<div className="fold-memory-card-title">
 							<span className="fold-memory-icon"><BriefcaseBusiness size={20} /></span>
-							<div><span>事</span><small>行动与习惯</small></div>
+							<div><span>事</span><small>项目与跟进</small></div>
 						</div>
 					</div>
 					<p className="fold-memory-kicker">
@@ -449,15 +449,23 @@ export function ProfileSection({
 							? "正在整理…"
 							: projectEntities.length > 0
 								? `${projectEntities.length} 个活跃项目`
-								: habits.length > 0
-									? `已归纳 ${habits.length} 类习惯`
-									: "尚未形成习惯"}
+								: followUps.length > 0
+									? `${followUps.length} 项待跟进`
+									: habits.length > 0
+										? `已归纳 ${habits.length} 类习惯`
+										: "尚未形成项目记录"}
 					</p>
 					<p className="fold-memory-summary">
-						{recent ? `最近：${recent.intent}` : "完成任务后，这里会归纳你常做的事。"}
+						{followUps.length > 0
+							? `${followUps.length} 项近期记录需要跟进。`
+							: "近期没有识别到待跟进事项。"}
 					</p>
 					<p className="fold-memory-summary">
-						{followUps.length > 0 ? `${followUps.length} 项近期记录需要跟进。` : "近期没有识别到待跟进事项。"}
+						{habits.length > 0
+							? `已归纳 ${habits.length} 类习惯`
+							: recent
+								? `最近：${recent.intent}`
+								: "完成任务后，这里会归纳你常做的事。"}
 					</p>
 					<span className="fold-memory-card-link">查看事项与项目 →</span>
 				</button>

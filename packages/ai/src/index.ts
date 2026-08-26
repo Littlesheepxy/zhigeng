@@ -1,4 +1,5 @@
-export { toLanguageModel } from "./providers.js";
+export { probeLlm } from "./probe-llm.js";
+export { extraProviderHeaders, toLanguageModel } from "./providers.js";
 export {
 	generateAhaGuess,
 	ruleBasedAhaReply,
