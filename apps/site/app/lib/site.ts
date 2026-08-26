@@ -4,4 +4,4 @@ export const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://zhigeng.app
 export const macDownloadUrl = "/Zhigeng-mac-arm64.dmg";
 export const macDownloadFilename = "Zhigeng-mac-arm64.dmg";
 
-export const sourceUrl = "https://github.com/Littlesheepxy/fold-one";
+export const sourceUrl = "https://github.com/Littlesheepxy/zhigeng";
