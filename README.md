@@ -5,13 +5,23 @@
 [![Release](https://img.shields.io/github/v/release/Littlesheepxy/zhigeng?style=flat-square&label=Release)](https://github.com/Littlesheepxy/zhigeng/releases)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/License-PolyForm%20Noncommercial-orange?style=flat-square)](LICENSE)
 
-[zhigeng.app](https://zhigeng.app) · 懂你正在做什么的语音输入。
+> **AI 不缺能力，缺的是认识你。**
 
-> 知你所言，才更懂你意。你说一句，它写好；说到，也能做到。
+知更是一个独立、厂商中立的语音输入与记忆 Agent。它不要求你迁移到新的聊天框，也不把你的记忆锁在某一家模型或大厂账号里。
+
+**语音听见你的意图，输入留下你的表达，本地轨迹记录你真正做过的事。** 知更在你允许的范围内，把这些线索沉淀成属于你的长期记忆——可查看、可修改、可删除，并交给你选择的模型与 Agent 使用。
+
+于是，你不必一次次解释背景：
+
+> **你说得越来越少，Agent 做得越来越对。**
+
+在 Mac 上，知更负责语音输入、情境代回和调度 Codex、Claude Code 等本地 Agent；正在研发的 iOS 版将成为随身记忆终端和本地 Agent 遥控器，让你在路上也能记录上下文、延续工作，并向家中或办公室的 Mac 发出指令。
+
+**不是把你交给某一个 AI，而是把属于你的上下文带给你选择的 AI。**
+
+[zhigeng.app](https://zhigeng.app) · 源码按 [PolyForm Noncommercial 1.0.0](LICENSE) 公开：**可以看、可以改、可以自用和研究，不可以商用。**
 
 面向用户的产品名是 **知更**；本仓库工程包名仍为 `@fold/*`。
-
-源码按 [PolyForm Noncommercial 1.0.0](LICENSE) 公开：**可以看、可以改、可以自用和研究，不可以商用。**
 
 ## 下载
 
@@ -89,7 +99,7 @@
 
 ## iOS 输入法（研发中）
 
-`apps/ios` 正在做 **iOS 17+ 键盘扩展**，目标体验对标豆包输入法、通义千问输入法、Typeless、微信输入法等：**系统级键盘、边说边出、智能候选与语音输入**，而不是另开一个 App 再复制粘贴。
+`apps/ios` 正在做 **iOS 17+ 键盘扩展与随身记忆终端**，目标体验对标豆包输入法、通义千问输入法、Typeless、微信输入法等：**系统级键盘、边说边出、智能候选与语音输入**，而不是另开一个 App 再复制粘贴。它也将承接你的上下文与记忆，并向家中或办公室 Mac 上的本地 Agent 发送指令。
 
 当前进展（尚未公开发布，预计后续开放体验与研究）：
 
@@ -97,6 +107,7 @@
 - **拼音引擎**：自研分词与候选（`ZhigengCore`），支持整句输入与纠错
 - **听写 ASR**：主 App 内火山引擎流式识别；桌面端仍走 SenseVoice / Whisper / 云端可选
 - **与桌面同一套记忆与画像**：人物、热词、习惯可在端间对齐（逐步完善）
+- **本地 Agent 遥控器**：在手机上补充上下文、发出指令，由 Mac 上的 Agent 继续执行（研发中）
 
 iOS 版**不在当前 macOS DMG 里**。想跟进开发可看 [`apps/ios/README.md`](apps/ios/README.md)。
 
