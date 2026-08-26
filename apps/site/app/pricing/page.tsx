@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Check } from "lucide-react";
 import { PageIntro } from "../components/PageSections";
-import { macDownloadUrl } from "../lib/site";
+import { macDownloadFilename, macDownloadUrl } from "../lib/site";
 
 export const metadata: Metadata = {
 	title: "定价",
@@ -70,7 +70,7 @@ export default function PricingPage() {
 						</li>
 					))}
 				</ul>
-				<a className="zg-primary" href={macDownloadUrl}>
+				<a className="zg-primary" href={macDownloadUrl} download={macDownloadFilename}>
 					下载 macOS
 				</a>
 			</section>

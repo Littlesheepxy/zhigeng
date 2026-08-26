@@ -9,7 +9,7 @@ import { HeroHighlight, Highlight } from "./HeroHighlight";
 import { FeatureShowcase } from "./FeatureModules";
 import { Differentiators } from "./Differentiators";
 import { VoicePill, type VoicePillState } from "./VoicePill";
-import { macDownloadUrl } from "../lib/site";
+import { macDownloadFilename, macDownloadUrl } from "../lib/site";
 
 const heroSentence = "知更，知你所言，才更懂你意。";
 const heroSentenceParts = [
@@ -45,7 +45,7 @@ export function LandingExperience() {
 							<span>你说一句，它写好；说到，也能做到。</span>
 						</p>
 						<div className="zg-actions" id="download">
-							<a className="zg-primary" href={macDownloadUrl}>
+							<a className="zg-primary" href={macDownloadUrl} download={macDownloadFilename}>
 								下载 macOS
 								<ArrowRight size={18} />
 							</a>
@@ -66,7 +66,7 @@ export function LandingExperience() {
 				<h2>把手从键盘上拿开，<br />让想法直接抵达结果。</h2>
 				<p>下载 macOS Apple Silicon 版，装好就能用。你说一句，它写好；说到，也能做到。</p>
 				<div className="zg-actions">
-					<a className="zg-primary" href={macDownloadUrl}>
+					<a className="zg-primary" href={macDownloadUrl} download={macDownloadFilename}>
 						下载 macOS
 						<ArrowRight size={18} />
 					</a>
