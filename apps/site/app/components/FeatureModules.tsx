@@ -870,9 +870,8 @@ export function FeatureShowcase() {
 				variants={fadeUp}
 			>
 				<p>
-					听懂你说的，看懂你在做的，
-					<br />
-					替你回、替你办，越用越懂你。
+					<span className="zg-line">听懂你说的，看懂你在做的，</span>
+					<span className="zg-line">替你回、替你办，越用越懂你。</span>
 				</p>
 			</motion.section>
 		</>

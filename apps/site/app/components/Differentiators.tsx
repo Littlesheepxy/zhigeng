@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from "framer-motion";
 const items = [
 	{
 		title: "三种快捷键",
-		body: "右 ⌘ 短按整理输入，长按情境代回；⌥ Space 把复杂事交给本机 Agent。",
+		body: "右 ⌘ 短按整理输入，长按情境代回。⌥ Space 把复杂事交给本机 Agent。",
 	},
 	{
 		title: "不抢焦点",

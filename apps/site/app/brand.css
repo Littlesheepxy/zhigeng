@@ -1356,16 +1356,16 @@ body {
 	}
 
 	.zg-hero h1 {
-		font-size: 32px;
+		font-size: 36px;
 		line-height: 1.22;
-		letter-spacing: 0;
+		letter-spacing: -0.03em;
 		white-space: normal;
 	}
 
 	.zg-feature-copy h2,
 	.zg-agent h2 {
-		font-size: 26px;
-		letter-spacing: 0;
+		font-size: 30px;
+		letter-spacing: -0.03em;
 		line-height: 1.28;
 	}
 
@@ -1376,23 +1376,28 @@ body {
 	}
 
 	.zg-recap p {
-		font-size: 24px;
-		letter-spacing: 0;
-		line-height: 1.45;
+		font-size: 30px;
+		letter-spacing: -0.045em;
+		line-height: 1.4;
+	}
+
+	.zg-recap .zg-line,
+	.zg-final-cta .zg-line {
+		white-space: nowrap;
 	}
 
 	.zg-final-cta h2,
 	.zg-page-cta h2,
 	.zg-page-intro h1 {
-		font-size: 28px;
-		letter-spacing: 0;
+		font-size: 34px;
+		letter-spacing: -0.04em;
 		line-height: 1.28;
 	}
 
 	.zg-final-cta > p,
 	.zg-page-cta > p {
-		font-size: 16px;
-		line-height: 1.65;
+		font-size: 17px;
+		line-height: 1.7;
 		max-width: none;
 	}
 
@@ -1452,23 +1457,23 @@ body {
 
 @media (max-width: 520px) {
 	.zg-hero h1 {
-		font-size: 30px;
-		letter-spacing: 0;
+		font-size: 34px;
+		letter-spacing: -0.03em;
 	}
 
 	.zg-feature-copy h2,
 	.zg-agent h2 {
-		font-size: 24px;
+		font-size: 28px;
 	}
 
 	.zg-recap p {
-		font-size: 22px;
+		font-size: 28px;
 	}
 
 	.zg-final-cta h2,
 	.zg-page-cta h2,
 	.zg-page-intro h1 {
-		font-size: 26px;
+		font-size: 32px;
 	}
 
 	.zg-hero-product {
@@ -1835,8 +1840,17 @@ body {
 }
 
 @media (max-width: 880px) {
+	.zg-diff {
+		text-align: center;
+	}
+
 	.zg-diff-list {
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: 1fr;
+		gap: 22px;
+	}
+
+	.zg-diff-list li {
+		align-items: center;
 	}
 
 	.zg-beta-layout {

@@ -64,11 +64,13 @@ export function LandingExperience() {
 
 			<motion.section className="zg-final-cta" initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.4 }} variants={fadeUp}>
 				<span>从一句话开始</span>
-				<h2>把手从键盘上拿开，<br />让想法直接抵达结果。</h2>
+				<h2>
+					<span className="zg-line">把手从键盘上拿开，</span>
+					<span className="zg-line">让想法直接抵达结果。</span>
+				</h2>
 				<p>
-					下载 macOS 版，装好就能用。
-					<br />
-					你说一句，它写好；说到，也能做到。
+					<span className="zg-line">下载 macOS 版，装好就能用。</span>
+					<span className="zg-line">你说一句，它写好；说到，也能做到。</span>
 				</p>
 				<div className="zg-actions">
 					<a className="zg-primary" href={macDownloadUrl} download={macDownloadFilename}>

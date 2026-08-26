@@ -369,6 +369,10 @@ a {
 	display: inline;
 }
 
+.zg-line {
+	display: block;
+}
+
 .zg-feature-copy > p {
 	max-width: 460px;
 	margin: 16px 0 0;
@@ -1784,10 +1788,11 @@ a {
 
 	.zg-hero-copy {
 		min-height: 0;
+		text-align: center;
 	}
 
 	.zg-hero-highlight-content {
-		align-items: stretch;
+		align-items: center;
 	}
 
 	.zg-hero h1,
@@ -1798,9 +1803,9 @@ a {
 
 	.zg-hero h1 {
 		white-space: normal;
-		font-size: 32px;
+		font-size: 36px;
 		line-height: 1.22;
-		letter-spacing: 0;
+		letter-spacing: -0.03em;
 	}
 
 	.zg-hero-then::before {
@@ -1853,13 +1858,13 @@ a {
 
 	.zg-recap {
 		margin-top: 110px;
-		text-align: left;
+		text-align: center;
 	}
 
 	.zg-recap p {
-		font-size: 24px;
-		letter-spacing: 0;
-		line-height: 1.45;
+		font-size: 30px;
+		letter-spacing: -0.04em;
+		line-height: 1.4;
 	}
 
 	.zg-pricing {
@@ -1871,21 +1876,17 @@ a {
 
 @media (max-width: 520px) {
 	.zg-hero h1 {
-		font-size: 30px;
+		font-size: 34px;
 		white-space: normal;
-		letter-spacing: 0;
+		letter-spacing: -0.03em;
 	}
 
 	.zg-hero-copy {
-		text-align: left;
+		text-align: center;
 	}
 
 	.zg-hero-highlight-content {
-		align-items: flex-start;
-	}
-
-	.zg-actions {
-		margin-left: 0;
+		align-items: center;
 	}
 
 	.zg-speak-raw {
