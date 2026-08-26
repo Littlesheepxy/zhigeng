@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { macDownloadUrl } from "../lib/site";
 
 const navigation = [
 	{ href: "/about", label: "关于知更" },
@@ -33,9 +34,9 @@ export function SiteHeader() {
 					</Link>
 				))}
 			</nav>
-			<Link className="zg-nav-cta" href="/beta">
-				申请内测码
-			</Link>
+			<a className="zg-nav-cta" href={macDownloadUrl}>
+				下载 macOS
+			</a>
 		</header>
 	);
 }

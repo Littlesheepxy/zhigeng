@@ -66,3 +66,15 @@ export function loadRemoteDeviceSecret(): string | null {
 export function clearRemoteDeviceSecret(): void {
 	clearSecret(remoteDeviceSecretPath());
 }
+
+function llmSecretPath(): string {
+	return join(resolveDataDir(), "llm.secret");
+}
+
+export function saveLlmSecretsJson(json: string): void {
+	saveSecret(llmSecretPath(), json);
+}
+
+export function loadLlmSecretsJson(): string | null {
+	return loadSecret(llmSecretPath());
+}

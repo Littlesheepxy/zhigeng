@@ -5,7 +5,7 @@ const footerLinks = [
 	{ href: "/about", label: "关于知更" },
 	{ href: "/blog", label: "博客" },
 	{ href: "/pricing", label: "定价" },
-	{ href: "/beta", label: "申请内测码" },
+	{ href: "/#download", label: "下载 macOS" },
 	{ href: "/privacy", label: "隐私政策" },
 	{ href: "/terms", label: "用户协议" },
 ];

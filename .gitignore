@@ -1,4 +1,5 @@
 node_modules
+.vercel
 dist
 apps/desktop/dist-electron
 .turbo

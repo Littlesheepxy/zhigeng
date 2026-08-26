@@ -45,6 +45,8 @@ const electronExternals = (id: string) =>
 	id === "better-sqlite3" ||
 	id === "uiohook-napi" ||
 	id === "@kutalia/whisper-node-addon" ||
+	id === "sherpa-onnx-node" ||
+	id.startsWith("sherpa-onnx-") ||
 	id === "fsevents" ||
 	id === "uuid" ||
 	id.startsWith("playwright") ||

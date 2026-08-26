@@ -9,6 +9,7 @@ import { HeroHighlight, Highlight } from "./HeroHighlight";
 import { FeatureShowcase } from "./FeatureModules";
 import { Differentiators } from "./Differentiators";
 import { VoicePill, type VoicePillState } from "./VoicePill";
+import { macDownloadUrl } from "../lib/site";
 
 const heroSentence = "知更，知你所言，才更懂你意。";
 const heroSentenceParts = [
@@ -44,10 +45,10 @@ export function LandingExperience() {
 							<span>你说一句，它写好；说到，也能做到。</span>
 						</p>
 						<div className="zg-actions" id="download">
-							<Link className="zg-primary" href="/beta">
-								申请内测码
+							<a className="zg-primary" href={macDownloadUrl}>
+								下载 macOS
 								<ArrowRight size={18} />
-							</Link>
+							</a>
 							<a className="zg-secondary" href="#speak">
 								看看它怎么做
 							</a>
@@ -63,12 +64,12 @@ export function LandingExperience() {
 			<motion.section className="zg-final-cta" initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.4 }} variants={fadeUp}>
 				<span>从一句话开始</span>
 				<h2>把手从键盘上拿开，<br />让想法直接抵达结果。</h2>
-				<p>留下邮箱申请内测码。通过后我们会发送安装方式。你说一句，它写好；说到，也能做到。</p>
+				<p>下载 macOS Apple Silicon 版，装好就能用。你说一句，它写好；说到，也能做到。</p>
 				<div className="zg-actions">
-					<Link className="zg-primary" href="/beta">
-						申请内测码
+					<a className="zg-primary" href={macDownloadUrl}>
+						下载 macOS
 						<ArrowRight size={18} />
-					</Link>
+					</a>
 					<Link className="zg-secondary" href="/about">
 						为什么做知更
 					</Link>

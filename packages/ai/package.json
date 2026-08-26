@@ -9,7 +9,8 @@
 	"scripts": {
 		"typecheck": "tsc --noEmit",
 		"test:structure-speech-cleanup": "pnpm exec tsx src/structure-speech-cleanup.self-check.ts",
-		"test:local-hotword-hints": "pnpm exec tsx src/local-hotword-hints.self-check.ts"
+		"test:local-hotword-hints": "pnpm exec tsx src/local-hotword-hints.self-check.ts",
+		"test:probe-llm": "pnpm exec tsx src/probe-llm.self-check.ts"
 	},
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.42",

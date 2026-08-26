@@ -52,9 +52,12 @@ contextBridge.exposeInMainWorld("fold", {
 			detail: string;
 			downloadSizeMb?: number;
 			trialRemaining?: number;
+			localEngine: "whisper" | "sensevoice";
+			whisperReady: boolean;
+			sensevoiceReady: boolean;
 		}>,
-	downloadVoicePack: () =>
-		ipcRenderer.invoke("fold:download-voice-pack") as Promise<
+	downloadVoicePack: (engine?: "whisper" | "sensevoice") =>
+		ipcRenderer.invoke("fold:download-voice-pack", engine) as Promise<
 			{ ok: true; path: string } | { ok: false; error: string }
 		>,
 	getAsrRuntime: () =>
@@ -346,6 +349,10 @@ contextBridge.exposeInMainWorld("fold", {
 		ipcRenderer.invoke("fold:open-data-dir") as Promise<{ ok: boolean; path?: string; error?: string }>,
 	saveConfig: (config: Record<string, unknown>) =>
 		ipcRenderer.invoke("fold:save-config", config) as Promise<{ ok: boolean }>,
+	testLlm: (role?: "planner" | "fast") =>
+		ipcRenderer.invoke("fold:test-llm", role) as Promise<
+			{ ok: true; provider: string; model: string } | { ok: false; error: string }
+		>,
 	accountGetState: () =>
 		ipcRenderer.invoke("fold:account-get-state") as Promise<{
 			signedIn: boolean;

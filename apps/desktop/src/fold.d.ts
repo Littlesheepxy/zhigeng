@@ -45,8 +45,13 @@ interface FoldApi {
 		detail: string;
 		downloadSizeMb?: number;
 		trialRemaining?: number;
+		localEngine: "whisper" | "sensevoice";
+		whisperReady: boolean;
+		sensevoiceReady: boolean;
 	}>;
-	downloadVoicePack(): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
+	downloadVoicePack(
+		engine?: "whisper" | "sensevoice",
+	): Promise<{ ok: true; path: string } | { ok: false; error: string }>;
 	getAsrRuntime(): Promise<{
 		provider: "mock" | "dashscope" | "local-whisper";
 		modelPath?: string;
@@ -238,6 +243,9 @@ interface FoldApi {
 	openExternal(url: string): Promise<{ ok: boolean }>;
 	openDataDir(): Promise<{ ok: boolean; path?: string; error?: string }>;
 	saveConfig(config: FoldConfig): Promise<{ ok: boolean }>;
+	testLlm(
+		role?: "planner" | "fast",
+	): Promise<{ ok: true; provider: string; model: string } | { ok: false; error: string }>;
 	accountGetState(): Promise<{
 		signedIn: boolean;
 		email?: string;

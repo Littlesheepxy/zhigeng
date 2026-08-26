@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
+import { macDownloadUrl } from "../lib/site";
 
 export function PageIntro({
 	eyebrow,
@@ -28,11 +28,11 @@ export function PageCta({
 	return (
 		<section className="zg-page-cta">
 			<h2>{title}</h2>
-			<p>留下邮箱，申请知更 macOS 内测码。</p>
-			<Link className="zg-primary" href="/beta">
-				申请内测码
+			<p>下载 macOS Apple Silicon 版，装好就能用。</p>
+			<a className="zg-primary" href={macDownloadUrl}>
+				下载 macOS
 				<ArrowRight size={18} />
-			</Link>
+			</a>
 		</section>
 	);
 }

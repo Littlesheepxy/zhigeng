@@ -12,7 +12,7 @@ const zhigengWordmark = localFont({
 });
 
 export const metadata: Metadata = {
-	metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+	metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://zhigeng.app"),
 	title: {
 		default: "知更 · 懂你正在做什么的语音输入",
 		template: "%s · 知更",

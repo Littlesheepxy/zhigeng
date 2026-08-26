@@ -6892,6 +6892,40 @@ button.fold-connection-chip-main.needs-action:hover:not(:disabled) {
   line-height: 1.5;
 }
 
+.fold-onboarding-voice-engines {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.fold-onboarding-voice-engine {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fold-onboarding-voice-engine strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.fold-onboarding-voice-engine span {
+  font-size: 11px;
+  color: #86868b;
+}
+
+.fold-onboarding-voice-engine.is-selected {
+  border-color: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.03);
+}
+
 .fold-onboarding-voice-switch-note {
   margin: 0;
   color: #86868b;

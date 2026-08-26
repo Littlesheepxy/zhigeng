@@ -1,29 +1,42 @@
-# Fold Runtime / 知更
+# 知更
 
-Local Context Agent for macOS — 懂你正在做什么的语音输入与轻量执行。
+[zhigeng.app](https://zhigeng.app) · 懂你正在做什么的语音输入。
+
+> 知你所言，才更懂你意。你说一句，它写好；说到，也能做到。
 
 面向用户的产品名是 **知更**；本仓库工程包名仍为 `@fold/*`。
 
-## Quick Start
+源码按 [PolyForm Noncommercial 1.0.0](LICENSE) 公开：可以看、可以自用、不可以商用。
 
-```bash
-# Install dependencies
-pnpm install
+## 下载
 
-# Copy env and add keys (optional — works with mock ASR + mock planner without keys)
-cp .env.example .env
+官网：[https://zhigeng.app](https://zhigeng.app)
 
-# Terminal 1: ASR proxy (optional if using mock ASR)
-pnpm asr:dev
+当前提供 **macOS Apple Silicon** 签名公证安装包。打开网站点下载即可，不需要内测码。
 
-# Terminal 2: Desktop app
-pnpm desktop:dev
+大模型不能在本机「下一个 LLM 就能用」。语音可以完全本地（SenseVoice / Whisper）；推理请在设置里填你自己的云端 API Key。
 
-# Optional: marketing site
-pnpm site:dev
-```
+## 它和普通语音输入差在哪
 
-## Usage（桌面快捷键）
+1. **开口即成稿**  
+   短按右 ⌘。不是逐字听写：改口会修好，口头禅可以去掉，并按飞书 / 微信 / 邮件调语气。也可以关掉智能整理，只去掉嗯呃。
+
+2. **先懂你正在做什么**  
+   看当前窗口、对话、剪贴板和正在推进的事。Menu Bar 常驻，不抢焦点，不用先打开一个聊天窗口解释背景。
+
+3. **读懂对话，给你几条可选用的回复**  
+   长按右 ⌘。按对方和应用给出多条草案，你点一条插入真实输入框，再决定发不发。
+
+4. **简单的事先确认再做，复杂的事交给你已经在用的 Agent**  
+   ⌥ Space。发消息、整理文件这类事，授权后由知更执行；代码和重活交给本机 Codex、Claude Code 或 WorkBuddy，做完再通知你。取消即停。
+
+5. **越用越懂你的工作方式**  
+   记住你在意谁、正在做什么、常用什么口吻。记忆留在本地，可看、可关、可删。
+
+6. **本地优先，钥匙自己拿**  
+   语音可走本机 SenseVoice（约 230MB）或 Whisper；云端 ASR 可选。大模型走你自己的 Key（OpenAI / Anthropic / 智谱 / Kimi / OpenRouter / 自定义 Base URL），存在系统钥匙串。
+
+## 桌面快捷键
 
 | 操作 | 快捷键 |
 |------|--------|
@@ -32,34 +45,32 @@ pnpm site:dev
 | 交给本机 Agent | **⌥ Space** |
 | 取消 | Esc |
 
-Demo：下载 PDF 到 `~/Downloads`，右 ⌘ 短按说「帮我整理刚下载的报价发给 Jason」。
+例：下载一份 PDF 到 `~/Downloads`，短按右 ⌘ 说「帮我整理刚下载的报价发给 Jason」。
 
-内测说明见 [docs/beta-tester-guide.md](docs/beta-tester-guide.md)。官网申请内测码：`pnpm site:dev` 后打开 `/beta`。
+## 自己跑
 
-## Structure
-
-```
-apps/desktop     Electron overlay + React UI（知更客户端）
-apps/site        官网（Next.js）：落地页 / 隐私 / 用户协议 / 申请内测码
-apps/asr-proxy   Aliyun DashScope ASR relay
-apps/account-api 账号与权益 API（可选）
-packages/ai      Multi-provider LLM router (Vercel AI SDK)
-packages/runtime Orchestrator / Planner / Executor
-packages/context Live context engine
-packages/skills  finder / pdf / mail skills
-packages/memory  SQLite episodes
+```bash
+pnpm install
+cp .env.example .env   # 可选；不填 Key 也能用 mock 看流程
+pnpm desktop:dev       # 桌面客户端
+pnpm site:dev          # 官网 https://zhigeng.app 的本地预览
 ```
 
-## Requirements
+打包签名 DMG（需本机 Developer ID 与公证凭据）：
 
-- macOS（当前目标平台）
-- Node.js 20+
-- pnpm 10+
-- Python 3 + `pdfplumber`（PDF 抽取）：`pip install pdfplumber`
-- 邮件：Mail.app 自动化权限，或 Desktop 草稿回退
+```bash
+pnpm desktop:pack
+```
 
-## Docs
+## 仓库结构
 
-- [内测指南](docs/beta-tester-guide.md)
-- [体验抽检清单](docs/agent-stress-checklist.md)
-- 更多见 [docs/](docs/)
+```
+apps/desktop     macOS 客户端（Electron）
+apps/site        官网（Next.js）→ zhigeng.app
+apps/ios         iOS 输入法与配套能力（开发中，不在当前 DMG 里）
+packages/        模型路由、执行器、情境、记忆、技能
+```
+
+## 协议
+
+[PolyForm Noncommercial 1.0.0](LICENSE)。个人学习、研究、自用可以；拿去做产品、接客户、卖服务不行。商业合作请联系 [hello@zhigeng.app](mailto:hello@zhigeng.app)。
