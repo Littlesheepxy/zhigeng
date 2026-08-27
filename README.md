@@ -174,7 +174,7 @@ docs/readme/     README 截图
 
 **Little Yang**
 
-招聘出身的 AI Builder，现任 AI 产品负责人。持续探索 AI 产品、Agent 通信、机器身份与协作信任，以及 AI 如何真正进入人的日常工作。
+招聘出身的 AI Builder，连续创业者，现任 AI 产品负责人。持续探索 AI 产品、Agent 通信、机器身份与协作信任，以及 AI 如何真正进入人的日常工作。
 
 目前也在探索 **AI Dealroom**：一个面向 AI 时代的人与 Agent 的可信身份和机会网络，让创业者、人才、项目与 Agent 更容易发现彼此、验证能力并开始合作。
 
