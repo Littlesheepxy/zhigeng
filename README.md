@@ -181,3 +181,7 @@ docs/readme/     README 截图
 欢迎创业者、AI Builder 和 Agent 研究者交流。
 
 📮 [littleyang78@gmail.com](mailto:littleyang78@gmail.com)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/chart?repos=Littlesheepxy/zhigeng&type=Date)](https://star-history.com/#Littlesheepxy/zhigeng&Date)
