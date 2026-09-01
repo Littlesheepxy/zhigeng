@@ -184,4 +184,12 @@ docs/readme/     README 截图
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/chart?repos=Littlesheepxy/zhigeng&type=Date)](https://star-history.com/#Littlesheepxy/zhigeng&Date)
+## Star History
+
+<a href="https://www.star-history.com/?repos=Littlesheepxy%2Fzhigeng&type=timeline&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Littlesheepxy/zhigeng&type=timeline&theme=dark&legend=top-left&sealed_token=J6nZX5QRlaK16F03J3noVPXBYjzUcPfPDUudMldqVQf00Rfwj2MSebI1PSgN8I_MhWG4UpIqczhXCfNtlx6oWOlsA9Z3uzczGGDljKMyCDboAlt4yDAm-w" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Littlesheepxy/zhigeng&type=timeline&legend=top-left&sealed_token=J6nZX5QRlaK16F03J3noVPXBYjzUcPfPDUudMldqVQf00Rfwj2MSebI1PSgN8I_MhWG4UpIqczhXCfNtlx6oWOlsA9Z3uzczGGDljKMyCDboAlt4yDAm-w" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Littlesheepxy/zhigeng&type=timeline&legend=top-left&sealed_token=J6nZX5QRlaK16F03J3noVPXBYjzUcPfPDUudMldqVQf00Rfwj2MSebI1PSgN8I_MhWG4UpIqczhXCfNtlx6oWOlsA9Z3uzczGGDljKMyCDboAlt4yDAm-w" />
+ </picture>
+</a>
